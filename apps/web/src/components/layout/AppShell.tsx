@@ -1,6 +1,9 @@
 ﻿import type { ReactNode } from "react";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
+
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 text-white">
       <div className="pointer-events-none fixed inset-0 -z-10">
@@ -12,6 +15,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="mx-auto w-full max-w-[1680px] px-4 py-4 sm:px-6 lg:px-8">
         {children}
+
+        <footer className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">
+          {t("app.footer")}
+        </footer>
       </div>
     </main>
   );

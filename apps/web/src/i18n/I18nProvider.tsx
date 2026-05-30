@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   createContext,
@@ -14,6 +14,7 @@ import {
   translations,
   type Language,
 } from "@/i18n/translations";
+import { extraTranslations } from "@/i18n/extraTranslations";
 
 type I18nContextValue = {
   language: Language;
@@ -42,13 +43,17 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }
 
   function t(key: string): string {
-    const value = getNestedValue(translations[language], key);
+    const value =
+      getNestedValue(translations[language], key) ??
+      getNestedValue(extraTranslations[language], key);
 
     if (typeof value === "string") {
       return value;
     }
 
-    const fallback = getNestedValue(translations[DEFAULT_LANGUAGE], key);
+    const fallback =
+      getNestedValue(translations[DEFAULT_LANGUAGE], key) ??
+      getNestedValue(extraTranslations[DEFAULT_LANGUAGE], key);
 
     if (typeof fallback === "string") {
       return fallback;

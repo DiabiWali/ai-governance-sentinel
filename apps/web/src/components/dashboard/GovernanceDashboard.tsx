@@ -25,6 +25,7 @@ import {
 import { INITIAL_AGENT_FORM } from "@/lib/constants";
 import { downloadBlob, safeFileName } from "@/lib/formatters";
 import { riskWeight } from "@/lib/risk";
+import { useI18n } from "@/i18n/I18nProvider";
 import type {
   AgentAssessmentForm,
   AgentRead,
@@ -637,24 +638,25 @@ export function GovernanceDashboard() {
 }
 
 function V1RoadmapPreview() {
+  const { t } = useI18n();
+
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur">
       <p className="text-sm uppercase tracking-[0.24em] text-cyan-300">
-        V1 product direction
+        {t("v1.roadmapEyebrow")}
       </p>
       <h2 className="mt-3 text-3xl font-semibold text-white">
-        Enterprise AI governance platform
+        {t("v1.roadmapTitle")}
       </h2>
       <p className="mt-3 max-w-4xl text-slate-400">
-        The v1 workspace introduces a clearer SaaS navigation model. The next increments
-        will add compliance mapping, charts, language selection and a stronger PDF report.
+        {t("v1.roadmapDescription")}
       </p>
 
       <div className="mt-6 grid gap-4 md:grid-cols-4">
-        <PreviewCard title="Compliance" text="OWASP LLM Top 10, NIST AI RMF and EU AI Act governance mapping." />
-        <PreviewCard title="Charts" text="Risk distribution, connector exposure, compliance coverage and activity trends." />
-        <PreviewCard title="Languages" text="English and French interface for international and French enterprise demos." />
-        <PreviewCard title="Reports v1" text="Executive PDF with risk, security findings, compliance posture and controls." />
+        <PreviewCard title={t("v1.compliance")} text={t("v1.complianceDescription")} />
+        <PreviewCard title={t("v1.charts")} text={t("v1.chartsDescription")} />
+        <PreviewCard title={t("v1.languages")} text={t("v1.languagesDescription")} />
+        <PreviewCard title={t("v1.reports")} text={t("v1.reportsDescription")} />
       </div>
     </section>
   );
