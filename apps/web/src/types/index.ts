@@ -213,3 +213,11 @@ export type DiscoveryScanResponse = {
   assets: DiscoveredAIAsset[];
 };
 
+export type DiscoveredAIAssetRead = DiscoveredAIAsset & {
+  id: number;
+  review_status: string;
+  promoted_agent_id: number | null;
+  created_at: string;
+  updated_at: string;
+};
+

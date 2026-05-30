@@ -6,6 +6,7 @@ import type {
   ComplianceMappingResponse,
   DiscoveryScanRequest,
   DiscoveryScanResponse,
+  DiscoveredAIAssetRead,
   HealthStatus,
   ObservabilityMetrics,
   PromptInjectionTestResponse,
@@ -244,5 +245,29 @@ export async function ingestEndpointDiscoveryReport(
   });
 
   return parseResponse<DiscoveryScanResponse>(response);
+}
+
+export async function listDiscoveredAssets(): Promise<DiscoveredAIAssetRead[]> {
+  const response = await fetch(`${API_URL}/discovery/assets`, {
+    method: "GET",
+    headers: authHeaders(),
+  });
+
+  return parseResponse<DiscoveredAIAssetRead[]>(response);
+}
+
+export async function updateDiscoveredAssetStatus(
+  assetId: number,
+  reviewStatus: string
+): Promise<DiscoveredAIAssetRead> {
+  const response = await fetch(`${API_URL}/discovery/assets/${assetId}/status`, {
+    method: "PATCH",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify({
+      review_status: reviewStatus,
+    }),
+  });
+
+  return parseResponse<DiscoveredAIAssetRead>(response);
 }
 

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.audit import to_audit_log_read, write_audit_log
 from app.compliance import generate_compliance_mapping
 from app.discovery import run_discovery_scan
+from app.discovery_store import persist_discovered_assets, to_discovered_asset_read
 from app.database import Base, engine, get_db
 from app.db_models import Agent, AuditLog, RiskAssessment
 from app.models import (
@@ -24,6 +25,9 @@ from app.models import (
     ComplianceMappingResponse,
     DiscoveryScanRequest,
     DiscoveryScanResponse,
+    DiscoveredAIAssetRead,
+    DiscoveryAssetStatusUpdate,
+    DiscoveredAIAssetRecord,
     DeleteResponse,
     PromptInjectionScenario,
     PromptInjectionTestResponse,
@@ -926,6 +930,7 @@ def scan_shadow_ai_assets(
     principal: SecurityPrincipal = Security(require_analyst_or_admin),
 ):
     result = run_discovery_scan(payload)
+    persist_discovered_assets(db, result.assets)
 
     write_audit_log(
         db=db,
@@ -962,6 +967,7 @@ def ingest_endpoint_discovery_report(
     )
 
     result = run_discovery_scan(request)
+    persist_discovered_assets(db, result.assets)
 
     write_audit_log(
         db=db,
@@ -981,4 +987,76 @@ def ingest_endpoint_discovery_report(
     )
 
     return result
+
+@app.get("/discovery/assets", response_model=list[DiscoveredAIAssetRead])
+def list_discovered_ai_assets(
+    source: str | None = None,
+    confidence: str | None = None,
+    review_status: str | None = None,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    query = db.query(DiscoveredAIAssetRecord)
+
+    if source:
+        query = query.filter(DiscoveredAIAssetRecord.source == source)
+
+    if confidence:
+        query = query.filter(DiscoveredAIAssetRecord.confidence == confidence)
+
+    if review_status:
+        query = query.filter(DiscoveredAIAssetRecord.review_status == review_status)
+
+    records = (
+        query.order_by(DiscoveredAIAssetRecord.updated_at.desc())
+        .limit(200)
+        .all()
+    )
+
+    return [to_discovered_asset_read(record) for record in records]
+
+
+@app.patch("/discovery/assets/{asset_id}/status", response_model=DiscoveredAIAssetRead)
+def update_discovered_ai_asset_status(
+    asset_id: int,
+    payload: DiscoveryAssetStatusUpdate,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    allowed_statuses = {"new", "reviewing", "promoted", "ignored", "false_positive"}
+
+    if payload.review_status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"review_status must be one of: {', '.join(sorted(allowed_statuses))}",
+        )
+
+    record = (
+        db.query(DiscoveredAIAssetRecord)
+        .filter(DiscoveredAIAssetRecord.id == asset_id)
+        .first()
+    )
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Discovered asset not found")
+
+    record.review_status = payload.review_status
+    db.commit()
+    db.refresh(record)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="discovery.asset.status_update",
+        resource_type="discovery_asset",
+        resource_id=str(asset_id),
+        status="success",
+        details={
+            "review_status": payload.review_status,
+            "source": record.source,
+            "source_id": record.source_id,
+        },
+    )
+
+    return to_discovered_asset_read(record)
 
