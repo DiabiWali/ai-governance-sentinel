@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -35,21 +35,27 @@ import type {
   SecurityPrincipal,
 } from "@/types";
 
-import { AppShell } from "@/components/layout/AppShell";
-import { CommandCenter } from "@/components/dashboard/CommandCenter";
-import { WorkflowSteps } from "@/components/dashboard/WorkflowSteps";
 import { AgentForm } from "@/components/agents/AgentForm";
 import { AgentInventory } from "@/components/agents/AgentInventory";
-import { RiskResultPanel } from "@/components/risk/RiskResultPanel";
-import { ReportPanel } from "@/components/reports/ReportPanel";
-import { PromptTestPanel } from "@/components/security/PromptTestPanel";
+import { CommandCenter } from "@/components/dashboard/CommandCenter";
+import { WorkflowSteps } from "@/components/dashboard/WorkflowSteps";
+import { AppShell } from "@/components/layout/AppShell";
+import { AppSidebar } from "@/components/layout/AppSidebar";
+import { DashboardTopBar } from "@/components/layout/DashboardTopBar";
+import type { DashboardTab } from "@/components/layout/TabNavigation";
 import { ObservabilityPanel } from "@/components/monitoring/ObservabilityPanel";
+import { ReportPanel } from "@/components/reports/ReportPanel";
+import { RiskResultPanel } from "@/components/risk/RiskResultPanel";
 import { AuditLogsPanel } from "@/components/security/AuditLogsPanel";
+import { PromptTestPanel } from "@/components/security/PromptTestPanel";
 
 export function GovernanceDashboard() {
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+
   const [form, setForm] = useState<AgentAssessmentForm>(INITIAL_AGENT_FORM);
   const [result, setResult] = useState<RiskResponse | null>(null);
-  const [promptResult, setPromptResult] = useState<PromptInjectionTestResponse | null>(null);
+  const [promptResult, setPromptResult] =
+    useState<PromptInjectionTestResponse | null>(null);
   const [report, setReport] = useState<RiskReportResponse | null>(null);
 
   const [agents, setAgents] = useState<AgentRead[]>([]);
@@ -242,6 +248,7 @@ export function GovernanceDashboard() {
       setPromptResult(data);
       void loadAuditLogs();
       void loadObservability();
+      setActiveTab("security");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
@@ -262,6 +269,7 @@ export function GovernanceDashboard() {
       setPromptResult(data.prompt_injection_tests);
       void loadAuditLogs();
       void loadObservability();
+      setActiveTab("reports");
     } catch (error) {
       console.error(error);
       alert("Unable to generate report.");
@@ -281,6 +289,7 @@ export function GovernanceDashboard() {
       setPromptResult(data.prompt_injection_tests);
       void loadAuditLogs();
       void loadObservability();
+      setActiveTab("reports");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
@@ -354,6 +363,7 @@ export function GovernanceDashboard() {
 
       void loadAuditLogs();
       void loadObservability();
+      setActiveTab("agents");
     } catch (error) {
       console.error(error);
       alert("Unable to save agent. Check PostgreSQL, FastAPI and the API key.");
@@ -430,6 +440,7 @@ export function GovernanceDashboard() {
 
     setPromptResult(null);
     setReport(null);
+    setActiveTab("assessment");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -443,90 +454,273 @@ export function GovernanceDashboard() {
 
   return (
     <AppShell>
-      <CommandCenter
-        principal={principal}
-        liveness={liveness}
-        readiness={readiness}
-        metrics={metrics}
-        savedAgents={agents.length}
-        criticalAgents={criticalAgents}
-        visibleAgents={filteredAgents.length}
-        auditEvents={auditLogs.length}
-        onRefreshIdentity={loadCurrentPrincipal}
-        onRefreshAuditLogs={loadAuditLogs}
-        onRefreshMonitoring={loadObservability}
-        monitoringLoading={observabilityLoading}
-      />
+      <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <AppSidebar activeTab={activeTab} onChange={setActiveTab} />
 
-      <WorkflowSteps />
+        <section className="min-w-0 space-y-6">
+          <DashboardTopBar
+            activeTab={activeTab}
+            principal={principal}
+            liveness={liveness}
+            readiness={readiness}
+            metrics={metrics}
+          />
 
-      <div className="grid gap-8 xl:grid-cols-[1fr_420px]">
-        <AgentForm
-          form={form}
+      {activeTab === "overview" && (
+        <>
+          <CommandCenter
+            principal={principal}
+            liveness={liveness}
+            readiness={readiness}
+            metrics={metrics}
+            savedAgents={agents.length}
+            criticalAgents={criticalAgents}
+            visibleAgents={filteredAgents.length}
+            auditEvents={auditLogs.length}
+            onRefreshIdentity={loadCurrentPrincipal}
+            onRefreshAuditLogs={loadAuditLogs}
+            onRefreshMonitoring={loadObservability}
+            monitoringLoading={observabilityLoading}
+          />
+
+          <WorkflowSteps />
+
+          <V1RoadmapPreview />
+        </>
+      )}
+
+      {activeTab === "assessment" && (
+        <div className="grid gap-8 xl:grid-cols-[1fr_420px]">
+          <AgentForm
+            form={form}
+            editingAgentId={editingAgentId}
+            loading={loading}
+            saving={saving}
+            promptTesting={promptTesting}
+            reportGenerating={reportGenerating}
+            onNew={resetForm}
+            onAssess={handleAssessRisk}
+            onSecurityTests={handleRunPromptTestsForCurrentForm}
+            onGenerateReport={handleGenerateReportForCurrentForm}
+            onDownloadPdf={handleDownloadPdfForCurrentForm}
+            onSave={handleSaveOrUpdateAgent}
+            onUpdateField={updateField}
+            onToggleConnector={toggleConnector}
+          />
+
+          <RiskResultPanel result={result} />
+        </div>
+      )}
+
+      {activeTab === "agents" && (
+        <AgentInventory
+          agents={filteredAgents}
+          searchQuery={searchQuery}
+          riskFilter={riskFilter}
+          sortMode={sortMode}
           editingAgentId={editingAgentId}
-          loading={loading}
-          saving={saving}
-          promptTesting={promptTesting}
-          reportGenerating={reportGenerating}
-          onNew={resetForm}
-          onAssess={handleAssessRisk}
-          onSecurityTests={handleRunPromptTestsForCurrentForm}
-          onGenerateReport={handleGenerateReportForCurrentForm}
-          onDownloadPdf={handleDownloadPdfForCurrentForm}
-          onSave={handleSaveOrUpdateAgent}
-          onUpdateField={updateField}
-          onToggleConnector={toggleConnector}
+          deletingAgentId={deletingAgentId}
+          inventoryLoading={inventoryLoading}
+          onSearchChange={setSearchQuery}
+          onRiskFilterChange={setRiskFilter}
+          onSortModeChange={setSortMode}
+          onRefresh={loadAgents}
+          onEdit={loadAgentIntoForm}
+          onDelete={handleDeleteAgent}
+          onRunTests={handleRunPromptTestsForAgent}
+          onGenerateReport={handleGenerateReportForAgent}
+          onDownloadPdf={handleDownloadPdfForAgent}
         />
+      )}
 
-        <RiskResultPanel result={result} />
+      {activeTab === "security" && (
+        <PromptTestPanel
+          result={promptResult}
+          loading={promptTesting}
+          onRunCurrent={handleRunPromptTestsForCurrentForm}
+        />
+      )}
+
+      {activeTab === "compliance" && (
+        <CompliancePreview
+          result={result}
+          promptResult={promptResult}
+          report={report}
+        />
+      )}
+
+      {activeTab === "reports" && (
+        <ReportPanel
+          report={report}
+          loading={reportGenerating}
+          onGenerate={handleGenerateReportForCurrentForm}
+          onDownloadMarkdown={handleDownloadMarkdown}
+          onDownloadPdf={handleDownloadPdfForCurrentForm}
+        />
+      )}
+
+      {activeTab === "monitoring" && (
+        <ObservabilityPanel
+          liveness={liveness}
+          readiness={readiness}
+          metrics={metrics}
+          loading={observabilityLoading}
+          onRefresh={loadObservability}
+        />
+      )}
+
+      {activeTab === "audit" && (
+        <AuditLogsPanel
+          logs={auditLogs}
+          loading={auditLoading}
+          onRefresh={loadAuditLogs}
+        />
+      )}
+
+      {activeTab === "settings" && <SettingsPreview />}
+        </section>
+      </div>
+    </AppShell>
+  );
+}
+
+function V1RoadmapPreview() {
+  return (
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur">
+      <p className="text-sm uppercase tracking-[0.24em] text-cyan-300">
+        V1 product direction
+      </p>
+      <h2 className="mt-3 text-3xl font-semibold text-white">
+        Enterprise AI governance platform
+      </h2>
+      <p className="mt-3 max-w-4xl text-slate-400">
+        The v1 workspace introduces a clearer SaaS navigation model. The next increments
+        will add compliance mapping, charts, language selection and a stronger PDF report.
+      </p>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-4">
+        <PreviewCard title="Compliance" text="OWASP LLM Top 10, NIST AI RMF and EU AI Act governance mapping." />
+        <PreviewCard title="Charts" text="Risk distribution, connector exposure, compliance coverage and activity trends." />
+        <PreviewCard title="Languages" text="English and French interface for international and French enterprise demos." />
+        <PreviewCard title="Reports v1" text="Executive PDF with risk, security findings, compliance posture and controls." />
+      </div>
+    </section>
+  );
+}
+
+function CompliancePreview({
+  result,
+  promptResult,
+  report,
+}: {
+  result: RiskResponse | null;
+  promptResult: PromptInjectionTestResponse | null;
+  report: RiskReportResponse | null;
+}) {
+  return (
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur">
+      <p className="text-sm uppercase tracking-[0.24em] text-emerald-300">
+        Compliance mapping
+      </p>
+      <h2 className="mt-3 text-3xl font-semibold text-white">
+        Compliance posture engine
+      </h2>
+      <p className="mt-3 max-w-4xl text-slate-400">
+        This module will map agent risk, prompt injection findings, data exposure and
+        human oversight controls against major AI governance and security frameworks.
+      </p>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <FrameworkCard
+          framework="OWASP LLM Top 10"
+          status={promptResult ? "Ready for mapping" : "Run security tests first"}
+          items={[
+            "Prompt Injection",
+            "Sensitive Information Disclosure",
+            "Excessive Agency",
+            "Insecure Output Handling",
+          ]}
+        />
+        <FrameworkCard
+          framework="NIST AI RMF"
+          status={result ? "Risk data available" : "Calculate risk first"}
+          items={["Govern", "Map", "Measure", "Manage"]}
+        />
+        <FrameworkCard
+          framework="EU AI Act"
+          status={report ? "Report data available" : "Generate report first"}
+          items={[
+            "Risk-based classification",
+            "Human oversight",
+            "Transparency",
+            "Logging and traceability",
+          ]}
+        />
       </div>
 
-      <AgentInventory
-        agents={filteredAgents}
-        searchQuery={searchQuery}
-        riskFilter={riskFilter}
-        sortMode={sortMode}
-        editingAgentId={editingAgentId}
-        deletingAgentId={deletingAgentId}
-        inventoryLoading={inventoryLoading}
-        onSearchChange={setSearchQuery}
-        onRiskFilterChange={setRiskFilter}
-        onSortModeChange={setSortMode}
-        onRefresh={loadAgents}
-        onEdit={loadAgentIntoForm}
-        onDelete={handleDeleteAgent}
-        onRunTests={handleRunPromptTestsForAgent}
-        onGenerateReport={handleGenerateReportForAgent}
-        onDownloadPdf={handleDownloadPdfForAgent}
-      />
+      <div className="mt-6 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-5 text-sm leading-6 text-yellow-100">
+        The EU AI Act mapping will be presented as a governance pre-assessment, not as
+        a legal qualification or legal advice.
+      </div>
+    </section>
+  );
+}
 
-      <PromptTestPanel
-        result={promptResult}
-        loading={promptTesting}
-        onRunCurrent={handleRunPromptTestsForCurrentForm}
-      />
+function SettingsPreview() {
+  return (
+    <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur">
+      <p className="text-sm uppercase tracking-[0.24em] text-purple-300">
+        Settings
+      </p>
+      <h2 className="mt-3 text-3xl font-semibold text-white">
+        Language and workspace preferences
+      </h2>
+      <p className="mt-3 max-w-4xl text-slate-400">
+        The v1 interface will include a language selector for English and French. This
+        will make the product easier to demonstrate both internationally and in French
+        enterprise contexts.
+      </p>
 
-      <ReportPanel
-        report={report}
-        loading={reportGenerating}
-        onGenerate={handleGenerateReportForCurrentForm}
-        onDownloadMarkdown={handleDownloadMarkdown}
-        onDownloadPdf={handleDownloadPdfForCurrentForm}
-      />
+      <div className="mt-6 grid gap-4 md:grid-cols-2">
+        <PreviewCard title="English" text="Default language for GitHub, portfolio and international technical demos." />
+        <PreviewCard title="French" text="Localized language for French governance, DSI and enterprise use cases." />
+      </div>
+    </section>
+  );
+}
 
-      <ObservabilityPanel
-        liveness={liveness}
-        readiness={readiness}
-        metrics={metrics}
-        loading={observabilityLoading}
-        onRefresh={loadObservability}
-      />
+function FrameworkCard({
+  framework,
+  status,
+  items,
+}: {
+  framework: string;
+  status: string;
+  items: string[];
+}) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-5">
+      <p className="text-lg font-semibold text-white">{framework}</p>
+      <p className="mt-2 text-sm text-cyan-200">{status}</p>
+      <div className="mt-5 space-y-2">
+        {items.map((item) => (
+          <div
+            key={item}
+            className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300"
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-      <AuditLogsPanel
-        logs={auditLogs}
-        loading={auditLoading}
-        onRefresh={loadAuditLogs}
-      />
-    </AppShell>
+function PreviewCard({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-5">
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-400">{text}</p>
+    </div>
   );
 }

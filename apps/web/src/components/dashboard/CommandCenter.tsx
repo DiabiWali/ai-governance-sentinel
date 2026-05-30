@@ -1,4 +1,4 @@
-import type { HealthStatus, ObservabilityMetrics, SecurityPrincipal } from "@/types";
+﻿import type { HealthStatus, ObservabilityMetrics, SecurityPrincipal } from "@/types";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { KpiCard } from "@/components/ui/KpiCard";
 
@@ -102,3 +102,4 @@ function StatusLine({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
