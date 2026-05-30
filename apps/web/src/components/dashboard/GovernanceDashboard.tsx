@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState } from "react";
 
 import {
   assessRisk,
@@ -8,6 +11,8 @@ import {
   deleteAgentById,
   scanDiscoveryAssets,
   ingestEndpointDiscoveryReport,
+  listDiscoveredAssets,
+  updateDiscoveredAssetStatus,
   downloadPdfForAgent,
   downloadPdfForCurrentForm,
   generateRiskReport,
@@ -23,9 +28,10 @@ import {
   runPromptTests,
   runPromptTestsForAgent,
   updateAgent,
-} from "@/lib/api";
+  } from "@/lib/api";
 import { INITIAL_AGENT_FORM } from "@/lib/constants";
-import { downloadBlob, safeFileName } from "@/lib/formatters";
+import { downloadBlob,
+  safeFileName } from "@/lib/formatters";
 import { riskWeight } from "@/lib/risk";
 import { useI18n } from "@/i18n/I18nProvider";
 import type {
@@ -33,6 +39,7 @@ import type {
   AgentRead,
   AuditLogRead,
   DiscoveredAIAsset,
+  DiscoveredAIAssetRead,
   DiscoveryScanResponse,
   HealthStatus,
   ObservabilityMetrics,
@@ -73,6 +80,7 @@ export function GovernanceDashboard() {
 
   const [agents, setAgents] = useState<AgentRead[]>([]);
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryScanResponse | null>(null);
+  const [discoveryHistory, setDiscoveryHistory] = useState<DiscoveredAIAssetRead[]>([]);
   const [principal, setPrincipal] = useState<SecurityPrincipal | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogRead[]>([]);
 
@@ -95,10 +103,12 @@ export function GovernanceDashboard() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [observabilityLoading, setObservabilityLoading] = useState(false);
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const [discoveryHistoryLoading, setDiscoveryHistoryLoading] = useState(false);
 
   useEffect(() => {
     void loadCurrentPrincipal();
     void loadAgents();
+    void loadDiscoveryHistory();
     void loadAuditLogs();
     void loadObservability();
   }, []);
@@ -208,6 +218,20 @@ export function GovernanceDashboard() {
     }
   }
 
+
+  async function loadDiscoveryHistory() {
+    setDiscoveryHistoryLoading(true);
+
+    try {
+      const data = await listDiscoveredAssets();
+      setDiscoveryHistory(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setDiscoveryHistoryLoading(false);
+    }
+  }
+
   async function loadAgents() {
     setInventoryLoading(true);
 
@@ -223,6 +247,18 @@ export function GovernanceDashboard() {
 
 
 
+
+  async function handleUpdateDiscoveryStatus(assetId: number, status: string) {
+    try {
+      await updateDiscoveredAssetStatus(assetId, status);
+      await loadDiscoveryHistory();
+      void loadAuditLogs();
+    } catch (error) {
+      console.error(error);
+      alert("Unable to update discovery asset status.");
+    }
+  }
+
   async function handleIngestEndpointDiscoveryReport(
     payload: Record<string, unknown>
   ) {
@@ -233,6 +269,10 @@ export function GovernanceDashboard() {
       setDiscoveryResult(data);
       void loadAuditLogs();
       void loadObservability();
+      void loadDiscoveryHistory();
+      void loadDiscoveryHistory();
+      void loadDiscoveryHistory();
+      void loadDiscoveryHistory();
     } catch (error) {
       console.error(error);
       alert("Unable to ingest endpoint discovery report.");
@@ -610,6 +650,10 @@ export function GovernanceDashboard() {
           onScan={handleRunDiscoveryScan}
           onEndpointReport={handleIngestEndpointDiscoveryReport}
           onPromote={handlePromoteDiscoveredAsset}
+          history={discoveryHistory}
+          historyLoading={discoveryHistoryLoading}
+          onRefreshHistory={loadDiscoveryHistory}
+          onUpdateHistoryStatus={handleUpdateDiscoveryStatus}
         />
       )}
 

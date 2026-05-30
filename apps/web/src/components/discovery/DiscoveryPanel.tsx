@@ -1,9 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState, type ChangeEvent } from "react";
 
 import type {
   DiscoveredAIAsset,
+  DiscoveredAIAssetRead,
   DiscoveryScanResponse,
 } from "@/types";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -13,6 +14,7 @@ import {
   formatSeverity,
 } from "@/lib/labels";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { DiscoveryHistoryPanel } from "@/components/discovery/DiscoveryHistoryPanel";
 
 type DiscoveryMode = "endpoint" | "manual";
 
@@ -37,9 +39,15 @@ export function DiscoveryPanel({
   onScan,
   onEndpointReport,
   onPromote,
+  history,
+  historyLoading,
+  onRefreshHistory,
+  onUpdateHistoryStatus,
 }: {
   result: DiscoveryScanResponse | null;
   loading: boolean;
+  history: DiscoveredAIAssetRead[];
+  historyLoading: boolean;
   onScan: (
     source: string,
     sourceName: string,
@@ -47,6 +55,8 @@ export function DiscoveryPanel({
   ) => void;
   onEndpointReport: (payload: Record<string, unknown>) => void;
   onPromote: (asset: DiscoveredAIAsset) => void;
+  onRefreshHistory: () => void;
+  onUpdateHistoryStatus: (assetId: number, status: string) => void;
 }) {
   const { t, language } = useI18n();
 
@@ -319,6 +329,13 @@ export function DiscoveryPanel({
           </div>
         </>
       )}
+
+      <DiscoveryHistoryPanel
+        assets={history}
+        loading={historyLoading}
+        onRefresh={onRefreshHistory}
+        onUpdateStatus={onUpdateHistoryStatus}
+      />
     </section>
   );
 }
