@@ -49,3 +49,21 @@ class RiskAssessment(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     agent = relationship("Agent", back_populates="assessments")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    actor = Column(String(160), nullable=False, index=True)
+    role = Column(String(80), nullable=False, index=True)
+    action = Column(String(160), nullable=False, index=True)
+
+    resource_type = Column(String(120), nullable=True, index=True)
+    resource_id = Column(String(120), nullable=True, index=True)
+
+    status = Column(String(80), nullable=False, default="success", index=True)
+    details = Column(JSON, nullable=False, default=dict)
+
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, index=True)

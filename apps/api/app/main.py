@@ -1,32 +1,35 @@
 ﻿from contextlib import asynccontextmanager
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy.orm import Session
-from app.reporting_pdf import build_pdf_filename, build_pdf_report
 
-
+from app.audit import to_audit_log_read, write_audit_log
 from app.database import Base, engine, get_db
-from app.db_models import Agent, RiskAssessment
+from app.db_models import Agent, AuditLog, RiskAssessment
 from app.models import (
     AgentAssessmentRequest,
     AgentAssessmentResponse,
     AgentCreate,
     AgentRead,
+    AuditLogRead,
     PromptInjectionScenario,
     PromptInjectionTestResponse,
     RiskAssessmentRead,
     RiskFactor,
     RiskReportResponse,
+    SecurityPrincipal,
 )
 from app.prompt_tests import (
     get_prompt_injection_scenarios,
     run_prompt_injection_tests,
 )
 from app.reporting import generate_risk_report
+from app.reporting_pdf import build_pdf_filename, build_pdf_report
 from app.risk_engine import calculate_risk_score
+from app.security import require_admin, require_analyst_or_admin, require_api_key
 
 
 @asynccontextmanager
@@ -37,8 +40,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AI Governance Sentinel API",
-    description="API for AI agent inventory, risk scoring, prompt injection testing and risk reporting.",
-    version="0.5.0",
+    description="API for AI agent inventory, risk scoring, prompt injection testing, reporting and enterprise security.",
+    version="0.6.0",
     lifespan=lifespan,
 )
 
@@ -129,21 +132,89 @@ def health_check():
     return {
         "status": "ok",
         "service": "ai-governance-sentinel-api",
-        "version": "0.5.0",
+        "version": "0.6.0",
     }
 
 
+@app.get("/auth/me", response_model=SecurityPrincipal)
+def get_current_principal(
+    principal: SecurityPrincipal = Security(require_api_key),
+):
+    return principal
+
+
+@app.get("/audit-logs", response_model=List[AuditLogRead])
+def list_audit_logs(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_admin),
+):
+    safe_limit = max(1, min(limit, 200))
+
+    audit_logs = (
+        db.query(AuditLog)
+        .order_by(AuditLog.created_at.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="audit_logs.list",
+        resource_type="audit_log",
+        status="success",
+        details={"limit": safe_limit},
+    )
+
+    return [
+        to_audit_log_read(audit_log)
+        for audit_log in audit_logs
+    ]
+
+
 @app.post("/risk/assess", response_model=AgentAssessmentResponse)
-def assess_agent(payload: AgentAssessmentRequest):
-    return calculate_risk_score(payload)
+def assess_agent(
+    payload: AgentAssessmentRequest,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    assessment = calculate_risk_score(payload)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="risk.assess",
+        resource_type="agent_profile",
+        status="success",
+        details={
+            "agent_name": payload.name,
+            "risk_score": assessment.risk_score,
+            "risk_level": assessment.risk_level,
+        },
+    )
+
+    return assessment
 
 
 @app.get("/agents", response_model=List[AgentRead])
-def list_agents(db: Session = Depends(get_db)):
+def list_agents(
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
     agents = (
         db.query(Agent)
         .order_by(Agent.created_at.desc())
         .all()
+    )
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="agents.list",
+        resource_type="agent",
+        status="success",
+        details={"count": len(agents)},
     )
 
     return [
@@ -153,7 +224,11 @@ def list_agents(db: Session = Depends(get_db)):
 
 
 @app.get("/agents/{agent_id}", response_model=AgentRead)
-def get_agent(agent_id: int, db: Session = Depends(get_db)):
+def get_agent(
+    agent_id: int,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
     agent = (
         db.query(Agent)
         .filter(Agent.id == agent_id)
@@ -161,13 +236,35 @@ def get_agent(agent_id: int, db: Session = Depends(get_db)):
     )
 
     if agent is None:
+        write_audit_log(
+            db=db,
+            principal=principal,
+            action="agents.get",
+            resource_type="agent",
+            resource_id=str(agent_id),
+            status="not_found",
+        )
+
         raise HTTPException(status_code=404, detail="Agent not found")
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="agents.get",
+        resource_type="agent",
+        resource_id=str(agent_id),
+        status="success",
+    )
 
     return to_agent_read(db, agent)
 
 
 @app.post("/agents", response_model=AgentRead, status_code=201)
-def create_agent(payload: AgentCreate, db: Session = Depends(get_db)):
+def create_agent(
+    payload: AgentCreate,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
     assessment = calculate_risk_score(payload)
 
     agent = Agent(
@@ -201,23 +298,59 @@ def create_agent(payload: AgentCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(risk_assessment)
 
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="agents.create",
+        resource_type="agent",
+        resource_id=str(agent.id),
+        status="success",
+        details={
+            "agent_name": agent.name,
+            "risk_score": assessment.risk_score,
+            "risk_level": assessment.risk_level,
+        },
+    )
+
     return to_agent_read(db, agent)
 
 
 @app.get("/prompt-tests/scenarios", response_model=List[PromptInjectionScenario])
-def list_prompt_injection_scenarios():
+def list_prompt_injection_scenarios(
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
     return get_prompt_injection_scenarios()
 
 
 @app.post("/prompt-tests/run", response_model=PromptInjectionTestResponse)
-def run_prompt_tests(payload: AgentAssessmentRequest):
-    return run_prompt_injection_tests(payload)
+def run_prompt_tests(
+    payload: AgentAssessmentRequest,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    result = run_prompt_injection_tests(payload)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="prompt_tests.run",
+        resource_type="agent_profile",
+        status="success",
+        details={
+            "agent_name": payload.name,
+            "overall_status": result.overall_status,
+            "failed_tests": result.failed_tests,
+        },
+    )
+
+    return result
 
 
 @app.post("/agents/{agent_id}/prompt-tests/run", response_model=PromptInjectionTestResponse)
 def run_prompt_tests_for_saved_agent(
     agent_id: int,
     db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
 ):
     agent = (
         db.query(Agent)
@@ -226,73 +359,103 @@ def run_prompt_tests_for_saved_agent(
     )
 
     if agent is None:
+        write_audit_log(
+            db=db,
+            principal=principal,
+            action="agents.prompt_tests.run",
+            resource_type="agent",
+            resource_id=str(agent_id),
+            status="not_found",
+        )
+
         raise HTTPException(status_code=404, detail="Agent not found")
 
     payload = agent_to_assessment_request(agent)
+    result = run_prompt_injection_tests(payload)
 
-    return run_prompt_injection_tests(payload)
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="agents.prompt_tests.run",
+        resource_type="agent",
+        resource_id=str(agent_id),
+        status="success",
+        details={
+            "agent_name": agent.name,
+            "overall_status": result.overall_status,
+            "failed_tests": result.failed_tests,
+        },
+    )
+
+    return result
 
 
 @app.post("/reports/generate", response_model=RiskReportResponse)
-def generate_report(payload: AgentAssessmentRequest):
-    return generate_risk_report(payload)
+def generate_report(
+    payload: AgentAssessmentRequest,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    report = generate_risk_report(payload)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="reports.generate",
+        resource_type="agent_profile",
+        status="success",
+        details={
+            "agent_name": payload.name,
+            "risk_level": report.risk_assessment.risk_level,
+        },
+    )
+
+    return report
 
 
 @app.post("/reports/generate/markdown", response_class=PlainTextResponse)
-def generate_markdown_report(payload: AgentAssessmentRequest):
+def generate_markdown_report(
+    payload: AgentAssessmentRequest,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
     report = generate_risk_report(payload)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="reports.generate_markdown",
+        resource_type="agent_profile",
+        status="success",
+        details={"agent_name": payload.name},
+    )
 
     return PlainTextResponse(
         content=report.markdown_report,
         media_type="text/markdown",
     )
 
-
-@app.get("/agents/{agent_id}/report", response_model=RiskReportResponse)
-def generate_report_for_saved_agent(
-    agent_id: int,
-    db: Session = Depends(get_db),
-):
-    agent = (
-        db.query(Agent)
-        .filter(Agent.id == agent_id)
-        .first()
-    )
-
-    if agent is None:
-        raise HTTPException(status_code=404, detail="Agent not found")
-
-    payload = agent_to_assessment_request(agent)
-
-    return generate_risk_report(payload)
-
-
-@app.get("/agents/{agent_id}/report/markdown", response_class=PlainTextResponse)
-def generate_markdown_report_for_saved_agent(
-    agent_id: int,
-    db: Session = Depends(get_db),
-):
-    agent = (
-        db.query(Agent)
-        .filter(Agent.id == agent_id)
-        .first()
-    )
-
-    if agent is None:
-        raise HTTPException(status_code=404, detail="Agent not found")
-
-    payload = agent_to_assessment_request(agent)
-    report = generate_risk_report(payload)
-
-    return PlainTextResponse(
-        content=report.markdown_report,
-        media_type="text/markdown",
-    )
 
 @app.post("/reports/generate/pdf")
-def generate_pdf_report(payload: AgentAssessmentRequest):
+def generate_pdf_report(
+    payload: AgentAssessmentRequest,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
     pdf_bytes = build_pdf_report(payload)
     filename = build_pdf_filename(payload.name)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="reports.generate_pdf",
+        resource_type="agent_profile",
+        status="success",
+        details={
+            "agent_name": payload.name,
+            "filename": filename,
+        },
+    )
 
     return Response(
         content=pdf_bytes,
@@ -303,10 +466,11 @@ def generate_pdf_report(payload: AgentAssessmentRequest):
     )
 
 
-@app.get("/agents/{agent_id}/report/pdf")
-def generate_pdf_report_for_saved_agent(
+@app.get("/agents/{agent_id}/report", response_model=RiskReportResponse)
+def generate_report_for_saved_agent(
     agent_id: int,
     db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
 ):
     agent = (
         db.query(Agent)
@@ -315,11 +479,119 @@ def generate_pdf_report_for_saved_agent(
     )
 
     if agent is None:
+        write_audit_log(
+            db=db,
+            principal=principal,
+            action="agents.report.generate",
+            resource_type="agent",
+            resource_id=str(agent_id),
+            status="not_found",
+        )
+
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    payload = agent_to_assessment_request(agent)
+    report = generate_risk_report(payload)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="agents.report.generate",
+        resource_type="agent",
+        resource_id=str(agent_id),
+        status="success",
+        details={
+            "agent_name": agent.name,
+            "risk_level": report.risk_assessment.risk_level,
+        },
+    )
+
+    return report
+
+
+@app.get("/agents/{agent_id}/report/markdown", response_class=PlainTextResponse)
+def generate_markdown_report_for_saved_agent(
+    agent_id: int,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    agent = (
+        db.query(Agent)
+        .filter(Agent.id == agent_id)
+        .first()
+    )
+
+    if agent is None:
+        write_audit_log(
+            db=db,
+            principal=principal,
+            action="agents.report.generate_markdown",
+            resource_type="agent",
+            resource_id=str(agent_id),
+            status="not_found",
+        )
+
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    payload = agent_to_assessment_request(agent)
+    report = generate_risk_report(payload)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="agents.report.generate_markdown",
+        resource_type="agent",
+        resource_id=str(agent_id),
+        status="success",
+        details={"agent_name": agent.name},
+    )
+
+    return PlainTextResponse(
+        content=report.markdown_report,
+        media_type="text/markdown",
+    )
+
+
+@app.get("/agents/{agent_id}/report/pdf")
+def generate_pdf_report_for_saved_agent(
+    agent_id: int,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    agent = (
+        db.query(Agent)
+        .filter(Agent.id == agent_id)
+        .first()
+    )
+
+    if agent is None:
+        write_audit_log(
+            db=db,
+            principal=principal,
+            action="agents.report.generate_pdf",
+            resource_type="agent",
+            resource_id=str(agent_id),
+            status="not_found",
+        )
+
         raise HTTPException(status_code=404, detail="Agent not found")
 
     payload = agent_to_assessment_request(agent)
     pdf_bytes = build_pdf_report(payload)
-    filename = build_pdf_filename(payload.name)
+    filename = build_pdf_filename(agent.name)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="agents.report.generate_pdf",
+        resource_type="agent",
+        resource_id=str(agent_id),
+        status="success",
+        details={
+            "agent_name": agent.name,
+            "filename": filename,
+        },
+    )
 
     return Response(
         content=pdf_bytes,

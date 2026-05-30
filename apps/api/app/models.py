@@ -102,3 +102,22 @@ class RiskReportResponse(BaseModel):
     prompt_injection_tests: PromptInjectionTestResponse
     recommendations: List[str]
     markdown_report: str
+
+
+class SecurityPrincipal(BaseModel):
+    actor: str
+    role: str
+
+
+class AuditLogRead(BaseModel):
+    id: int
+    actor: str
+    role: str
+    action: str
+    resource_type: Optional[str] = None
+    resource_id: Optional[str] = None
+    status: str
+    details: dict
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
