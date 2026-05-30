@@ -53,6 +53,7 @@ import { ReportPanel } from "@/components/reports/ReportPanel";
 import { RiskResultPanel } from "@/components/risk/RiskResultPanel";
 import { AuditLogsPanel } from "@/components/security/AuditLogsPanel";
 import { PromptTestPanel } from "@/components/security/PromptTestPanel";
+import { SettingsPanel } from "@/components/settings/SettingsPanel";
 
 export function GovernanceDashboard() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
@@ -628,7 +629,7 @@ export function GovernanceDashboard() {
         />
       )}
 
-      {activeTab === "settings" && <SettingsPreview />}
+      {activeTab === "settings" && <SettingsPanel />}
         </section>
       </div>
     </AppShell>

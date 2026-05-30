@@ -1,32 +1,36 @@
+﻿import { useI18n } from "@/i18n/I18nProvider";
+
 const steps = [
   {
     number: "01",
-    title: "Define agent",
-    description: "Describe the AI agent, its purpose, data exposure and connected systems.",
+    titleKey: "workflow.defineTitle",
+    descriptionKey: "workflow.defineDescription",
   },
   {
     number: "02",
-    title: "Assess risk",
-    description: "Calculate a governance score based on sensitivity, autonomy and permissions.",
+    titleKey: "workflow.assessTitle",
+    descriptionKey: "workflow.assessDescription",
   },
   {
     number: "03",
-    title: "Test security",
-    description: "Run simulated prompt injection and connector abuse scenarios.",
+    titleKey: "workflow.testTitle",
+    descriptionKey: "workflow.testDescription",
   },
   {
     number: "04",
-    title: "Generate report",
-    description: "Export an executive PDF report with findings and remediation actions.",
+    titleKey: "workflow.reportTitle",
+    descriptionKey: "workflow.reportDescription",
   },
   {
     number: "05",
-    title: "Monitor",
-    description: "Track audit logs, API health, database status and operational metrics.",
+    titleKey: "workflow.monitorTitle",
+    descriptionKey: "workflow.monitorDescription",
   },
 ];
 
 export function WorkflowSteps() {
+  const { t } = useI18n();
+
   return (
     <section className="grid gap-4 lg:grid-cols-5">
       {steps.map((step) => (
@@ -37,8 +41,12 @@ export function WorkflowSteps() {
           <span className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300">
             {step.number}
           </span>
-          <h3 className="mt-4 text-lg font-semibold text-white">{step.title}</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-400">{step.description}</p>
+          <h3 className="mt-4 text-lg font-semibold text-white">
+            {t(step.titleKey)}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            {t(step.descriptionKey)}
+          </p>
         </div>
       ))}
     </section>

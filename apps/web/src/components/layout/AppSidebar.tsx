@@ -1,63 +1,65 @@
 ﻿import type { DashboardTab } from "@/components/layout/TabNavigation";
+import { LanguageSelector } from "@/i18n/LanguageSelector";
+import { useI18n } from "@/i18n/I18nProvider";
 
 const navItems: Array<{
   key: DashboardTab;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   accent: string;
 }> = [
   {
     key: "overview",
-    label: "Overview",
-    description: "Command center",
+    labelKey: "sidebar.overview",
+    descriptionKey: "sidebar.overviewDescription",
     accent: "bg-cyan-400",
   },
   {
     key: "agents",
-    label: "Agents",
-    description: "Inventory",
+    labelKey: "sidebar.agents",
+    descriptionKey: "sidebar.agentsDescription",
     accent: "bg-sky-400",
   },
   {
     key: "assessment",
-    label: "Assessment",
-    description: "Risk scoring",
+    labelKey: "sidebar.assessment",
+    descriptionKey: "sidebar.assessmentDescription",
     accent: "bg-blue-400",
   },
   {
     key: "security",
-    label: "Security Tests",
-    description: "Prompt injection",
+    labelKey: "sidebar.security",
+    descriptionKey: "sidebar.securityDescription",
     accent: "bg-purple-400",
   },
   {
     key: "compliance",
-    label: "Compliance",
-    description: "OWASP, NIST, AI Act",
+    labelKey: "sidebar.compliance",
+    descriptionKey: "sidebar.complianceDescription",
     accent: "bg-emerald-400",
   },
   {
     key: "reports",
-    label: "Reports",
-    description: "PDF exports",
+    labelKey: "sidebar.reports",
+    descriptionKey: "sidebar.reportsDescription",
     accent: "bg-teal-400",
   },
   {
     key: "monitoring",
-    label: "Monitoring",
-    description: "Health and metrics",
+    labelKey: "sidebar.monitoring",
+    descriptionKey: "sidebar.monitoringDescription",
     accent: "bg-lime-400",
   },
   {
     key: "audit",
-    label: "Audit Logs",
-    description: "Traceability",
+    labelKey: "sidebar.audit",
+    descriptionKey: "sidebar.auditDescription",
     accent: "bg-orange-400",
   },
   {
     key: "settings",
-    label: "Settings",
-    description: "Language",
+    labelKey: "sidebar.settings",
+    descriptionKey: "sidebar.settingsDescription",
     accent: "bg-pink-400",
   },
 ];
@@ -69,6 +71,8 @@ export function AppSidebar({
   activeTab: DashboardTab;
   onChange: (tab: DashboardTab) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <aside className="lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
       <div className="flex h-full flex-col rounded-[2rem] border border-white/10 bg-slate-950/70 p-4 shadow-2xl backdrop-blur-xl">
@@ -78,8 +82,8 @@ export function AppSidebar({
               AG
             </div>
             <div>
-              <p className="font-semibold text-white">AI Governance</p>
-              <p className="text-xs text-slate-400">Sentinel v1 workspace</p>
+              <p className="font-semibold text-white">{t("sidebar.productName")}</p>
+              <p className="text-xs text-slate-400">{t("sidebar.workspace")}</p>
             </div>
           </div>
         </div>
@@ -105,9 +109,11 @@ export function AppSidebar({
                   }`}
                 />
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold">{item.label}</span>
+                  <span className="block text-sm font-semibold">
+                    {t(item.labelKey)}
+                  </span>
                   <span className="mt-0.5 block truncate text-xs opacity-70">
-                    {item.description}
+                    {t(item.descriptionKey)}
                   </span>
                 </span>
               </button>
@@ -115,12 +121,16 @@ export function AppSidebar({
           })}
         </nav>
 
-        <div className="mt-auto rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+        <div className="mt-5">
+          <LanguageSelector />
+        </div>
+
+        <div className="mt-5 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-            Demo mode
+            {t("sidebar.demoMode")}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            Local enterprise cockpit with API key auth, RBAC, audit logs and monitoring.
+            {t("sidebar.demoDescription")}
           </p>
         </div>
       </div>

@@ -1,42 +1,43 @@
 ﻿import type { DashboardTab } from "@/components/layout/TabNavigation";
 import type { HealthStatus, ObservabilityMetrics, SecurityPrincipal } from "@/types";
+import { useI18n } from "@/i18n/I18nProvider";
 
-const titleByTab: Record<DashboardTab, { title: string; subtitle: string }> = {
+const titleKeysByTab: Record<DashboardTab, { title: string; subtitle: string }> = {
   overview: {
-    title: "Enterprise AI governance cockpit",
-    subtitle: "Global posture, platform health and governance workflow.",
+    title: "topbar.overviewTitle",
+    subtitle: "topbar.overviewSubtitle",
   },
   agents: {
-    title: "AI agent inventory",
-    subtitle: "Manage, filter and govern registered enterprise AI agents.",
+    title: "topbar.agentsTitle",
+    subtitle: "topbar.agentsSubtitle",
   },
   assessment: {
-    title: "Risk assessment studio",
-    subtitle: "Evaluate agent exposure, autonomy, connectors and data sensitivity.",
+    title: "topbar.assessmentTitle",
+    subtitle: "topbar.assessmentSubtitle",
   },
   security: {
-    title: "LLM security testing",
-    subtitle: "Run prompt injection and connector abuse simulations.",
+    title: "topbar.securityTitle",
+    subtitle: "topbar.securitySubtitle",
   },
   compliance: {
-    title: "Compliance mapping",
-    subtitle: "Prepare OWASP, NIST AI RMF and EU AI Act governance mapping.",
+    title: "topbar.complianceTitle",
+    subtitle: "topbar.complianceSubtitle",
   },
   reports: {
-    title: "Governance reports",
-    subtitle: "Generate executive and technical exports for review committees.",
+    title: "topbar.reportsTitle",
+    subtitle: "topbar.reportsSubtitle",
   },
   monitoring: {
-    title: "Observability and operations",
-    subtitle: "Track runtime health, latency, errors and governance activity.",
+    title: "topbar.monitoringTitle",
+    subtitle: "topbar.monitoringSubtitle",
   },
   audit: {
-    title: "Audit trail",
-    subtitle: "Review traceability of security-sensitive platform actions.",
+    title: "topbar.auditTitle",
+    subtitle: "topbar.auditSubtitle",
   },
   settings: {
-    title: "Workspace settings",
-    subtitle: "Language, preferences and future enterprise configuration.",
+    title: "topbar.settingsTitle",
+    subtitle: "topbar.settingsSubtitle",
   },
 };
 
@@ -53,28 +54,45 @@ export function DashboardTopBar({
   readiness: HealthStatus | null;
   metrics: ObservabilityMetrics | null;
 }) {
-  const content = titleByTab[activeTab];
+  const { t } = useI18n();
+  const content = titleKeysByTab[activeTab];
 
   return (
     <header className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300">
-            AI Governance Sentinel
+            {t("topbar.product")}
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-white md:text-4xl">
-            {content.title}
+            {t(content.title)}
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            {content.subtitle}
+            {t(content.subtitle)}
           </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <TopStatus label="Identity" value={principal ? `${principal.actor} / ${principal.role}` : "not authenticated"} tone={principal ? "good" : "warning"} />
-          <TopStatus label="API" value={liveness?.status || "unknown"} tone={liveness?.status === "live" ? "good" : "warning"} />
-          <TopStatus label="Database" value={readiness?.database || "unknown"} tone={readiness?.database === "ok" ? "good" : "warning"} />
-          <TopStatus label="Latency" value={metrics ? `${metrics.runtime.average_latency_ms} ms` : "unknown"} tone="neutral" />
+          <TopStatus
+            label={t("topbar.identity")}
+            value={principal ? `${principal.actor} / ${principal.role}` : t("topbar.notAuthenticated")}
+            tone={principal ? "good" : "warning"}
+          />
+          <TopStatus
+            label={t("topbar.api")}
+            value={liveness?.status || t("common.unknown")}
+            tone={liveness?.status === "live" ? "good" : "warning"}
+          />
+          <TopStatus
+            label={t("topbar.database")}
+            value={readiness?.database || t("common.unknown")}
+            tone={readiness?.database === "ok" ? "good" : "warning"}
+          />
+          <TopStatus
+            label={t("topbar.latency")}
+            value={metrics ? `${metrics.runtime.average_latency_ms} ms` : t("common.unknown")}
+            tone="neutral"
+          />
         </div>
       </div>
     </header>
