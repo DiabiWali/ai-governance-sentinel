@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -140,4 +140,30 @@ class AuditLogRead(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class ComplianceControlMapping(BaseModel):
+    framework: str
+    control_id: str
+    control_name: str
+    status: str
+    severity: str
+    evidence: str
+    recommendation: str
+
+
+class ComplianceFrameworkMapping(BaseModel):
+    framework: str
+    score: int
+    posture: str
+    controls: List[ComplianceControlMapping]
+
+
+class ComplianceMappingResponse(BaseModel):
+    agent_name: str
+    generated_at: datetime
+    overall_score: int
+    overall_posture: str
+    executive_summary: str
+    disclaimer: str
+    frameworks: List[ComplianceFrameworkMapping]
 
