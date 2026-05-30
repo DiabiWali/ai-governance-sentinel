@@ -7,6 +7,7 @@ import type {
 } from "@/types";
 import { formatDateTime } from "@/lib/formatters";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { ComplianceCharts } from "@/components/compliance/ComplianceCharts";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatComplianceStatus, formatPosture, formatSeverity } from "@/lib/labels";
 
@@ -55,6 +56,8 @@ export function CompliancePanel({
       {mapping && (
         <div className="mt-6 grid gap-6">
           <ComplianceSummary mapping={mapping} />
+
+          <ComplianceCharts mapping={mapping} />
 
           <div className="grid gap-6 xl:grid-cols-3">
             {mapping.frameworks.map((framework) => (
