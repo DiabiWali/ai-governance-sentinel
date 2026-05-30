@@ -328,3 +328,106 @@ Before real production deployment, the following should still be added:
 - container image scanning
 - centralized logs and metrics backend
 - deployment manifests for Kubernetes or a cloud platform
+
+<!-- V1_ENTERPRISE_PLATFORM_START -->
+
+## V1 Enterprise Platform
+
+AI Governance Sentinel v1 turns the project into an enterprise-oriented AI governance platform.
+
+It provides a complete workflow to inventory, assess, secure, monitor and report on AI agents connected to enterprise systems.
+
+### V1 capabilities
+
+- Premium SaaS cockpit with sidebar navigation
+- English / French language switch
+- AI agent inventory
+- Dynamic AI risk scoring
+- Prompt injection test suite
+- Compliance mapping engine
+- OWASP LLM Top 10 mapping
+- NIST AI RMF mapping
+- EU AI Act governance pre-assessment
+- PDF governance report v1
+- Compliance charts
+- Risk and connector exposure charts
+- PostgreSQL persistence
+- API key authentication
+- Role-based access control
+- Admin audit logs
+- Observability and monitoring
+- Docker Compose runtime
+
+### Product workflow
+
+1. Register or define an AI agent
+2. Assess its governance and security risk
+3. Run prompt injection security tests
+4. Map the agent against governance frameworks
+5. Generate an executive PDF report
+6. Monitor platform health and audit logs
+
+### V1 modules
+
+| Module | Purpose |
+|---|---|
+| Overview | Global AI governance cockpit with charts and posture indicators |
+| Agents | Persistent inventory of AI agents |
+| Assessment | Risk scoring studio |
+| Security Tests | Prompt injection and abuse scenario testing |
+| Compliance | OWASP, NIST AI RMF and EU AI Act pre-assessment |
+| Reports | Markdown and PDF governance reports |
+| Monitoring | API health, database status, latency and metrics |
+| Audit Logs | Traceability of sensitive actions |
+| Settings | Language and workspace preferences |
+
+### Compliance mapping
+
+The compliance engine produces an automated governance pre-assessment across OWASP LLM Top 10, NIST AI Risk Management Framework and EU AI Act risk-based governance expectations.
+
+The EU AI Act output is intentionally presented as a governance pre-assessment. It is not a legal opinion, certification or final regulatory qualification.
+
+### Local Docker demo
+
+Run:
+
+    docker compose up --build
+
+Then open:
+
+- Frontend: http://localhost:3000
+- API docs: http://localhost:8000/docs
+- API health: http://localhost:8000/live
+- API readiness: http://localhost:8000/ready
+
+### Demo credentials
+
+- Admin API key: dev-admin-key
+- Analyst API key: dev-analyst-key
+
+These keys are for local development only and must not be used in production.
+
+### Recommended screenshots for GitHub
+
+- docs/assets/overview-cockpit.png
+- docs/assets/agent-assessment.png
+- docs/assets/compliance-mapping.png
+- docs/assets/compliance-charts.png
+- docs/assets/pdf-report-preview.png
+- docs/assets/monitoring.png
+
+### Production-readiness roadmap
+
+- OpenID Connect / enterprise identity provider
+- Secret manager integration
+- HTTPS reverse proxy
+- CI/CD pipeline
+- Container image scanning
+- Centralized logging and metrics backend
+- Kubernetes manifests or Helm chart
+- Policy-based approval workflows
+- Multi-tenant workspace model
+- Real enterprise connector inventory
+
+<!-- V1_ENTERPRISE_PLATFORM_END -->
+
