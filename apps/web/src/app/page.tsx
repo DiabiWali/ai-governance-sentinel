@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
@@ -102,6 +102,47 @@ type AuditLogRead = {
   created_at: string;
 };
 
+type RouteMetrics = {
+  requests: number;
+  errors: number;
+  total_latency_ms: number;
+  average_latency_ms: number;
+  last_status_code: number | null;
+};
+
+type ObservabilityMetrics = {
+  service: string;
+  version: string;
+  requested_by: SecurityPrincipal;
+  runtime: {
+    uptime_seconds: number;
+    total_requests: number;
+    total_errors: number;
+    average_latency_ms: number;
+    routes: Record<string, RouteMetrics>;
+  };
+  database: {
+    agents_count: number;
+    risk_assessments_count: number;
+    audit_logs_count: number;
+  };
+  governance: {
+    report_events_count: number;
+    prompt_test_events_count: number;
+    risk_assessment_events_count: number;
+    agent_create_events_count: number;
+    agent_update_events_count: number;
+    agent_delete_events_count: number;
+  };
+};
+
+type HealthStatus = {
+  status: string;
+  service: string;
+  version: string;
+  database?: string;
+};
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const DEMO_API_KEY = process.env.NEXT_PUBLIC_DEMO_API_KEY || "dev-admin-key";
 
@@ -165,6 +206,9 @@ export default function Home() {
   const [agents, setAgents] = useState<AgentRead[]>([]);
   const [principal, setPrincipal] = useState<SecurityPrincipal | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogRead[]>([]);
+  const [liveness, setLiveness] = useState<HealthStatus | null>(null);
+  const [readiness, setReadiness] = useState<HealthStatus | null>(null);
+  const [metrics, setMetrics] = useState<ObservabilityMetrics | null>(null);
 
   const [editingAgentId, setEditingAgentId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -178,11 +222,13 @@ export default function Home() {
   const [reportGenerating, setReportGenerating] = useState(false);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [observabilityLoading, setObservabilityLoading] = useState(false);
 
   useEffect(() => {
     loadCurrentPrincipal();
     loadAgents();
     loadAuditLogs();
+    loadObservability();
   }, []);
 
   const sensitiveConnectorCount = useMemo(() => {
@@ -293,6 +339,38 @@ export default function Home() {
       setAuditLogs([]);
     } finally {
       setAuditLoading(false);
+    }
+  }
+
+  async function loadObservability() {
+    setObservabilityLoading(true);
+
+    try {
+      const [liveResponse, readyResponse, metricsResponse] = await Promise.all([
+        fetch(`${API_URL}/live`),
+        fetch(`${API_URL}/ready`),
+        fetch(`${API_URL}/metrics`, {
+          headers: authHeaders(),
+        }),
+      ]);
+
+      const liveData = await liveResponse.json();
+      const readyData = await readyResponse.json();
+
+      setLiveness(liveData);
+      setReadiness(readyData);
+
+      if (!metricsResponse.ok) {
+        throw new Error("Unable to load metrics");
+      }
+
+      const metricsData = await metricsResponse.json();
+      setMetrics(metricsData);
+    } catch (error) {
+      console.error(error);
+      setMetrics(null);
+    } finally {
+      setObservabilityLoading(false);
     }
   }
 
@@ -694,6 +772,12 @@ export default function Home() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <ActionButton label="Refresh identity" onClick={loadCurrentPrincipal} />
               <ActionButton label="Refresh audit logs" onClick={loadAuditLogs} />
+              <ActionButton
+                label={observabilityLoading ? "Loading..." : "Refresh monitoring"}
+                onClick={loadObservability}
+                disabled={observabilityLoading}
+                variant="green"
+              />
             </div>
           </div>
         </section>
@@ -703,6 +787,112 @@ export default function Home() {
           <KpiCard label="Critical agents" value={String(criticalAgents)} />
           <KpiCard label="Visible agents" value={String(filteredAgents.length)} />
           <KpiCard label="Audit events" value={String(auditLogs.length)} />
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold">Observability & Monitoring</h2>
+              <p className="mt-2 text-slate-400">
+                Runtime health, readiness, API latency, request volume and governance metrics exposed by the backend.
+              </p>
+            </div>
+
+            <ActionButton
+              label={observabilityLoading ? "Refreshing..." : "Refresh monitoring"}
+              onClick={loadObservability}
+              disabled={observabilityLoading}
+              variant="green"
+            />
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
+            <MonitoringCard
+              label="Live"
+              value={liveness?.status || "unknown"}
+              tone={liveness?.status === "live" ? "good" : "warning"}
+            />
+            <MonitoringCard
+              label="Ready"
+              value={readiness?.status || "unknown"}
+              tone={readiness?.status === "ready" ? "good" : "warning"}
+            />
+            <MonitoringCard
+              label="Database"
+              value={readiness?.database || "unknown"}
+              tone={readiness?.database === "ok" ? "good" : "warning"}
+            />
+            <MonitoringCard
+              label="API version"
+              value={metrics?.version || liveness?.version || "unknown"}
+              tone="neutral"
+            />
+          </div>
+
+          {metrics && (
+            <>
+              <div className="mt-6 grid gap-4 md:grid-cols-4">
+                <ObservabilityMetric
+                  label="Total requests"
+                  value={String(metrics.runtime.total_requests)}
+                />
+                <ObservabilityMetric
+                  label="Total errors"
+                  value={String(metrics.runtime.total_errors)}
+                />
+                <ObservabilityMetric
+                  label="Avg latency"
+                  value={`${metrics.runtime.average_latency_ms} ms`}
+                />
+                <ObservabilityMetric
+                  label="Uptime"
+                  value={formatUptime(metrics.runtime.uptime_seconds)}
+                />
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <ObservabilityMetric
+                  label="Agents in database"
+                  value={String(metrics.database.agents_count)}
+                />
+                <ObservabilityMetric
+                  label="Risk assessments"
+                  value={String(metrics.database.risk_assessments_count)}
+                />
+                <ObservabilityMetric
+                  label="Audit logs"
+                  value={String(metrics.database.audit_logs_count)}
+                />
+              </div>
+
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                <ObservabilityMetric
+                  label="Reports generated"
+                  value={String(metrics.governance.report_events_count)}
+                />
+                <ObservabilityMetric
+                  label="Prompt tests"
+                  value={String(metrics.governance.prompt_test_events_count)}
+                />
+                <ObservabilityMetric
+                  label="Agent changes"
+                  value={String(
+                    metrics.governance.agent_create_events_count +
+                      metrics.governance.agent_update_events_count +
+                      metrics.governance.agent_delete_events_count
+                  )}
+                />
+              </div>
+
+              <RouteMetricsList routes={metrics.runtime.routes} />
+            </>
+          )}
+
+          {!metrics && (
+            <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
+              Metrics are not available yet. Check that the API is running and that the demo admin API key is configured.
+            </div>
+          )}
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1fr_420px]">
@@ -1064,6 +1254,95 @@ export default function Home() {
         </section>
       </section>
     </main>
+  );
+}
+
+function formatUptime(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (minutes < 1) {
+    return `${remainingSeconds}s`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (hours < 1) {
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+function MonitoringCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "good" | "warning" | "neutral";
+}) {
+  const toneClass = {
+    good: "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
+    warning: "border-yellow-400/30 bg-yellow-400/10 text-yellow-100",
+    neutral: "border-white/10 bg-slate-900/70 text-slate-100",
+  };
+
+  return (
+    <div className={`rounded-2xl border p-5 ${toneClass[tone]}`}>
+      <p className="text-sm uppercase tracking-wide opacity-80">{label}</p>
+      <p className="mt-3 text-2xl font-semibold capitalize">{value}</p>
+    </div>
+  );
+}
+
+function ObservabilityMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+      <p className="text-sm text-slate-400">{label}</p>
+      <p className="mt-3 text-2xl font-semibold text-slate-100">{value}</p>
+    </div>
+  );
+}
+
+function RouteMetricsList({ routes }: { routes: Record<string, RouteMetrics> }) {
+  const routeEntries = Object.entries(routes)
+    .sort(([, a], [, b]) => b.requests - a.requests)
+    .slice(0, 8);
+
+  if (routeEntries.length === 0) {
+    return (
+      <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
+        No route metrics recorded yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
+      <div className="grid grid-cols-[1fr_120px_120px_160px] bg-slate-900 px-4 py-3 text-xs uppercase tracking-wide text-slate-400">
+        <span>Route</span>
+        <span>Requests</span>
+        <span>Errors</span>
+        <span>Avg latency</span>
+      </div>
+
+      <div className="divide-y divide-white/10">
+        {routeEntries.map(([route, values]) => (
+          <div
+            key={route}
+            className="grid grid-cols-[1fr_120px_120px_160px] px-4 py-4 text-sm text-slate-300"
+          >
+            <span className="font-mono text-xs text-slate-200">{route}</span>
+            <span>{values.requests}</span>
+            <span>{values.errors}</span>
+            <span>{values.average_latency_ms} ms</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
