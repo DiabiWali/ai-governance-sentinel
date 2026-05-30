@@ -53,6 +53,27 @@ type AgentAssessmentForm = {
   stores_outputs: boolean;
 };
 
+type PromptInjectionFinding = {
+  scenario_id: string;
+  title: string;
+  category: string;
+  severity: string;
+  attack_prompt: string;
+  expected_control: string;
+  passed: boolean;
+  finding: string;
+  recommendation: string;
+};
+
+type PromptInjectionTestResponse = {
+  agent_name: string;
+  total_tests: number;
+  passed_tests: number;
+  failed_tests: number;
+  overall_status: string;
+  findings: PromptInjectionFinding[];
+};
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const CONNECTORS = [
@@ -96,9 +117,12 @@ const INITIAL_FORM: AgentAssessmentForm = {
 export default function Home() {
   const [form, setForm] = useState<AgentAssessmentForm>(INITIAL_FORM);
   const [result, setResult] = useState<RiskResponse | null>(null);
+  const [promptResult, setPromptResult] =
+    useState<PromptInjectionTestResponse | null>(null);
   const [agents, setAgents] = useState<AgentRead[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [promptTesting, setPromptTesting] = useState(false);
   const [inventoryLoading, setInventoryLoading] = useState(false);
 
   useEffect(() => {
@@ -118,7 +142,8 @@ export default function Home() {
   }, [form.autonomy_level, form.human_approval_required]);
 
   const criticalAgents = useMemo(() => {
-    return agents.filter((agent) => agent.latest_assessment?.risk_level === "critical").length;
+    return agents.filter((agent) => agent.latest_assessment?.risk_level === "critical")
+      .length;
   }, [agents]);
 
   function updateField<K extends keyof AgentAssessmentForm>(
@@ -193,6 +218,61 @@ export default function Home() {
     }
   }
 
+  async function runPromptTestsForCurrentForm() {
+    setPromptTesting(true);
+    setPromptResult(null);
+
+    try {
+      const response = await fetch(`${API_URL}/prompt-tests/run`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        throw new Error("Prompt injection tests failed");
+      }
+
+      const data = await response.json();
+      setPromptResult(data);
+    } catch (error) {
+      console.error(error);
+      alert("Unable to run prompt injection tests. Make sure FastAPI is running.");
+    } finally {
+      setPromptTesting(false);
+    }
+  }
+
+  async function runPromptTestsForSavedAgent(agentId: number) {
+    setPromptTesting(true);
+    setPromptResult(null);
+
+    try {
+      const response = await fetch(`${API_URL}/agents/${agentId}/prompt-tests/run`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Prompt injection tests failed for saved agent");
+      }
+
+      const data = await response.json();
+      setPromptResult(data);
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } catch (error) {
+      console.error(error);
+      alert("Unable to run tests for this saved agent.");
+    } finally {
+      setPromptTesting(false);
+    }
+  }
+
   async function saveAgent() {
     setSaving(true);
 
@@ -254,6 +334,8 @@ export default function Home() {
         factors: agent.latest_assessment.factors,
       });
     }
+
+    setPromptResult(null);
   }
 
   return (
@@ -279,7 +361,10 @@ export default function Home() {
           <KpiCard label="Saved agents" value={String(agents.length)} />
           <KpiCard label="Critical agents" value={String(criticalAgents)} />
           <KpiCard label="Sensitive connectors" value={String(sensitiveConnectorCount)} />
-          <KpiCard label="Approval gap" value={approvalGap ? "Yes" : "No"} />
+          <KpiCard
+            label="Prompt test status"
+            value={promptResult ? promptResult.overall_status : "Not tested"}
+          />
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1fr_420px]">
@@ -288,23 +373,31 @@ export default function Home() {
               <div>
                 <h2 className="text-2xl font-semibold">AI agent assessment</h2>
                 <p className="mt-2 max-w-2xl text-slate-400">
-                  Describe an AI agent, assess its risk and save it into the persistent
-                  inventory.
+                  Describe an AI agent, assess its risk, save it into the inventory and
+                  run prompt injection security tests.
                 </p>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   onClick={runAssessment}
-                  disabled={loading || saving}
+                  disabled={loading || saving || promptTesting}
                   className="min-w-[160px] whitespace-nowrap rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? "Assessing..." : "Run assessment"}
                 </button>
 
                 <button
+                  onClick={runPromptTestsForCurrentForm}
+                  disabled={loading || saving || promptTesting}
+                  className="min-w-[170px] whitespace-nowrap rounded-xl border border-purple-400/40 bg-purple-400/10 px-5 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {promptTesting ? "Testing..." : "Run security tests"}
+                </button>
+
+                <button
                   onClick={saveAgent}
-                  disabled={loading || saving}
+                  disabled={loading || saving || promptTesting}
                   className="min-w-[150px] whitespace-nowrap rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving ? "Saving..." : "Save agent"}
@@ -485,6 +578,59 @@ export default function Home() {
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
+              <h2 className="text-2xl font-semibold">Prompt injection test suite</h2>
+              <p className="mt-2 text-slate-400">
+                Simulated security tests evaluate whether the agent configuration is
+                exposed to prompt injection, data exfiltration, connector abuse or
+                approval bypass risks.
+              </p>
+            </div>
+
+            <button
+              onClick={runPromptTestsForCurrentForm}
+              disabled={promptTesting}
+              className="min-w-[190px] whitespace-nowrap rounded-xl border border-purple-400/40 bg-purple-400/10 px-5 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {promptTesting ? "Running tests..." : "Test current agent"}
+            </button>
+          </div>
+
+          {!promptResult && (
+            <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
+              No prompt injection tests have been executed yet.
+            </div>
+          )}
+
+          {promptResult && (
+            <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
+              <div className={`rounded-2xl border p-5 ${riskTone(promptResult.overall_status)}`}>
+                <p className="text-sm uppercase tracking-wide">
+                  {promptResult.overall_status}
+                </p>
+                <h3 className="mt-2 text-2xl font-bold">{promptResult.agent_name}</h3>
+
+                <div className="mt-5 grid grid-cols-3 gap-3">
+                  <PromptMetric label="Total" value={String(promptResult.total_tests)} />
+                  <PromptMetric label="Passed" value={String(promptResult.passed_tests)} />
+                  <PromptMetric label="Failed" value={String(promptResult.failed_tests)} />
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                {promptResult.findings.map((finding) => (
+                  <PromptFindingCard
+                    key={finding.scenario_id}
+                    finding={finding}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
               <h2 className="text-2xl font-semibold">Persistent agent inventory</h2>
               <p className="mt-2 text-slate-400">
                 Agents saved through the API are stored in PostgreSQL and loaded from
@@ -515,6 +661,7 @@ export default function Home() {
                     key={agent.id}
                     agent={agent}
                     onLoad={() => loadAgentIntoForm(agent)}
+                    onRunTests={() => runPromptTestsForSavedAgent(agent.id)}
                   />
                 ))}
               </div>
@@ -588,9 +735,11 @@ function Toggle({
 function AgentCard({
   agent,
   onLoad,
+  onRunTests,
 }: {
   agent: AgentRead;
   onLoad: () => void;
+  onRunTests: () => void;
 }) {
   const assessment = agent.latest_assessment;
 
@@ -603,13 +752,17 @@ function AgentCard({
         </div>
 
         {assessment && (
-          <span className={`rounded-full border px-3 py-1 text-xs uppercase ${riskBadge(assessment.risk_level)}`}>
+          <span
+            className={`rounded-full border px-3 py-1 text-xs uppercase ${riskBadge(
+              assessment.risk_level
+            )}`}
+          >
             {assessment.risk_level} • {assessment.risk_score}/100
           </span>
         )}
       </div>
 
-      <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-300">
+      <p className="mt-4 text-sm leading-6 text-slate-300">
         {agent.purpose}
       </p>
 
@@ -635,12 +788,97 @@ function AgentCard({
         ))}
       </div>
 
-      <button
-        onClick={onLoad}
-        className="mt-5 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-slate-100 transition hover:border-cyan-400/50 hover:bg-cyan-400/10"
-      >
-        Load into form
-      </button>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <button
+          onClick={onLoad}
+          className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-slate-100 transition hover:border-cyan-400/50 hover:bg-cyan-400/10"
+        >
+          Load into form
+        </button>
+
+        <button
+          onClick={onRunTests}
+          className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-4 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20"
+        >
+          Run tests
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function PromptMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.05] p-3 text-center">
+      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-1 text-xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+function PromptFindingCard({ finding }: { finding: PromptInjectionFinding }) {
+  return (
+    <article
+      className={`rounded-2xl border p-5 ${
+        finding.passed
+          ? "border-emerald-400/20 bg-emerald-400/5"
+          : "border-red-400/20 bg-red-400/5"
+      }`}
+    >
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${
+                finding.passed
+                  ? "bg-emerald-400/10 text-emerald-100"
+                  : "bg-red-400/10 text-red-100"
+              }`}
+            >
+              {finding.passed ? "passed" : "failed"}
+            </span>
+
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs uppercase text-slate-300">
+              {finding.category}
+            </span>
+
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs uppercase text-slate-300">
+              {finding.severity}
+            </span>
+          </div>
+
+          <h3 className="mt-3 text-lg font-semibold">{finding.title}</h3>
+        </div>
+
+        <span className="font-mono text-xs text-slate-500">
+          {finding.scenario_id}
+        </span>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/60 p-4">
+        <p className="text-xs uppercase tracking-wide text-slate-500">
+          Attack prompt
+        </p>
+        <p className="mt-2 text-sm leading-6 text-slate-300">
+          {finding.attack_prompt}
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">Finding</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{finding.finding}</p>
+        </div>
+
+        <div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            Recommendation
+          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            {finding.recommendation}
+          </p>
+        </div>
+      </div>
     </article>
   );
 }
@@ -664,6 +902,8 @@ function riskTone(level: string) {
       return "border-orange-400/30 bg-orange-400/10 text-orange-100";
     case "medium":
       return "border-yellow-400/30 bg-yellow-400/10 text-yellow-100";
+    case "passed":
+      return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100";
     default:
       return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100";
   }
