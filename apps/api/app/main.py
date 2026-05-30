@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.audit import to_audit_log_read, write_audit_log
 from app.compliance import generate_compliance_mapping
+from app.discovery import run_discovery_scan
 from app.database import Base, engine, get_db
 from app.db_models import Agent, AuditLog, RiskAssessment
 from app.models import (
@@ -21,6 +22,8 @@ from app.models import (
     AgentRead,
     AuditLogRead,
     ComplianceMappingResponse,
+    DiscoveryScanRequest,
+    DiscoveryScanResponse,
     DeleteResponse,
     PromptInjectionScenario,
     PromptInjectionTestResponse,
@@ -915,4 +918,31 @@ def map_compliance_for_saved_agent(
     )
 
     return mapping
+
+@app.post("/discovery/scan", response_model=DiscoveryScanResponse)
+def scan_shadow_ai_assets(
+    payload: DiscoveryScanRequest,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    result = run_discovery_scan(payload)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="discovery.scan",
+        resource_type="discovery",
+        status="success",
+        details={
+            "source": payload.source,
+            "source_name": payload.source_name,
+            "scanned_items": result.summary.scanned_items,
+            "detected_assets": result.summary.detected_assets,
+            "high_confidence": result.summary.high_confidence,
+            "medium_confidence": result.summary.medium_confidence,
+            "low_confidence": result.summary.low_confidence,
+        },
+    )
+
+    return result
 

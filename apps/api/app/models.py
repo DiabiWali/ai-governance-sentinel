@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -169,3 +169,49 @@ class AuditLogRead(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class DiscoveryScanRequest(BaseModel):
+    source: str
+    source_name: str = "manual"
+    payload: Dict[str, Any]
+
+
+class DiscoveryFinding(BaseModel):
+    label: str
+    severity: str
+    evidence: str
+
+
+class DiscoveredAIAsset(BaseModel):
+    name: str
+    source: str
+    source_id: str
+    detected_type: str
+    confidence: str
+    model_provider: str
+    data_sensitivity: str
+    autonomy_level: str
+    connectors: List[str]
+    internet_exposed: bool
+    human_approval_required: bool
+    stores_prompts: bool
+    stores_outputs: bool
+    indicators: List[str]
+    findings: List[DiscoveryFinding]
+    recommended_action: str
+
+
+class DiscoveryScanSummary(BaseModel):
+    scanned_items: int
+    detected_assets: int
+    high_confidence: int
+    medium_confidence: int
+    low_confidence: int
+
+
+class DiscoveryScanResponse(BaseModel):
+    source: str
+    source_name: str
+    summary: DiscoveryScanSummary
+    assets: List[DiscoveredAIAsset]
+
