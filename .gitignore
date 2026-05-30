@@ -25,3 +25,9 @@ build/
 *.sqlite
 *.sqlite3
 apps/api/*.db
+
+# Generated reports
+ai-risk-report-*.pdf
+ai-risk-report-*.md
+risk-report-*.pdf
+risk-report-*.md

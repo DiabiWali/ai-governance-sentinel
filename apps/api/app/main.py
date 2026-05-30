@@ -3,8 +3,10 @@ from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy.orm import Session
+from app.reporting_pdf import build_pdf_filename, build_pdf_report
+
 
 from app.database import Base, engine, get_db
 from app.db_models import Agent, RiskAssessment
@@ -285,4 +287,44 @@ def generate_markdown_report_for_saved_agent(
     return PlainTextResponse(
         content=report.markdown_report,
         media_type="text/markdown",
+    )
+
+@app.post("/reports/generate/pdf")
+def generate_pdf_report(payload: AgentAssessmentRequest):
+    pdf_bytes = build_pdf_report(payload)
+    filename = build_pdf_filename(payload.name)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
+    )
+
+
+@app.get("/agents/{agent_id}/report/pdf")
+def generate_pdf_report_for_saved_agent(
+    agent_id: int,
+    db: Session = Depends(get_db),
+):
+    agent = (
+        db.query(Agent)
+        .filter(Agent.id == agent_id)
+        .first()
+    )
+
+    if agent is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    payload = agent_to_assessment_request(agent)
+    pdf_bytes = build_pdf_report(payload)
+    filename = build_pdf_filename(payload.name)
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
     )
