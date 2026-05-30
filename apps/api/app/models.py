@@ -112,34 +112,6 @@ class PromptInjectionTestResponse(BaseModel):
     findings: List[PromptInjectionFinding]
 
 
-class RiskReportResponse(BaseModel):
-    agent_name: str
-    generated_at: datetime
-    executive_summary: str
-    agent_profile: AgentAssessmentRequest
-    risk_assessment: AgentAssessmentResponse
-    prompt_injection_tests: PromptInjectionTestResponse
-    recommendations: List[str]
-    markdown_report: str
-
-
-class SecurityPrincipal(BaseModel):
-    actor: str
-    role: str
-
-
-class AuditLogRead(BaseModel):
-    id: int
-    actor: str
-    role: str
-    action: str
-    resource_type: Optional[str] = None
-    resource_id: Optional[str] = None
-    status: str
-    details: dict
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
 
 class ComplianceControlMapping(BaseModel):
     framework: str
@@ -167,3 +139,33 @@ class ComplianceMappingResponse(BaseModel):
     disclaimer: str
     frameworks: List[ComplianceFrameworkMapping]
 
+
+class RiskReportResponse(BaseModel):
+    agent_name: str
+    generated_at: datetime
+    executive_summary: str
+    agent_profile: AgentAssessmentRequest
+    risk_assessment: AgentAssessmentResponse
+    prompt_injection_tests: PromptInjectionTestResponse
+    recommendations: List[str]
+    compliance_mapping: Optional[ComplianceMappingResponse] = None
+    markdown_report: str
+
+
+class SecurityPrincipal(BaseModel):
+    actor: str
+    role: str
+
+
+class AuditLogRead(BaseModel):
+    id: int
+    actor: str
+    role: str
+    action: str
+    resource_type: Optional[str] = None
+    resource_id: Optional[str] = None
+    status: str
+    details: dict
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

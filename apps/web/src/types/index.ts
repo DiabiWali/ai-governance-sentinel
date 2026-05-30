@@ -78,6 +78,7 @@ export type RiskReportResponse = {
   risk_assessment: RiskResponse;
   prompt_injection_tests: PromptInjectionTestResponse;
   recommendations: string[];
+  compliance_mapping: ComplianceMappingResponse | null;
   markdown_report: string;
 };
 
