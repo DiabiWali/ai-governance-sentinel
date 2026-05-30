@@ -1,4 +1,4 @@
-﻿export type RiskFactor = {
+export type RiskFactor = {
   label: string;
   severity: string;
   recommendation: string;
@@ -138,3 +138,31 @@ export type HealthStatus = {
   version: string;
   database?: string;
 };
+
+export type ComplianceControlMapping = {
+  framework: string;
+  control_id: string;
+  control_name: string;
+  status: string;
+  severity: string;
+  evidence: string;
+  recommendation: string;
+};
+
+export type ComplianceFrameworkMapping = {
+  framework: string;
+  score: number;
+  posture: string;
+  controls: ComplianceControlMapping[];
+};
+
+export type ComplianceMappingResponse = {
+  agent_name: string;
+  generated_at: string;
+  overall_score: number;
+  overall_posture: string;
+  executive_summary: string;
+  disclaimer: string;
+  frameworks: ComplianceFrameworkMapping[];
+};
+

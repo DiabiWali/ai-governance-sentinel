@@ -1,4 +1,4 @@
-import type { AgentRead } from "@/types";
+﻿import type { AgentRead } from "@/types";
 import { humanizeEnum } from "@/lib/formatters";
 import { riskBadge } from "@/lib/risk";
 import { ActionButton } from "@/components/ui/ActionButton";
@@ -20,6 +20,7 @@ export function AgentInventory({
   onRunTests,
   onGenerateReport,
   onDownloadPdf,
+  onCompliance,
 }: {
   agents: AgentRead[];
   searchQuery: string;
@@ -37,6 +38,7 @@ export function AgentInventory({
   onRunTests: (agentId: number) => void;
   onGenerateReport: (agentId: number) => void;
   onDownloadPdf: (agentId: number, agentName: string) => void;
+  onCompliance: (agentId: number) => void;
 }) {
   return (
     <section
@@ -52,7 +54,7 @@ export function AgentInventory({
             Manage saved AI agents
           </h2>
           <p className="mt-3 max-w-3xl text-slate-400">
-            Search, filter, edit, delete, test and report on persistent AI agents.
+            Search, filter, edit, delete, test, map compliance and report on persistent AI agents.
           </p>
         </div>
 
@@ -102,7 +104,7 @@ export function AgentInventory({
         )}
 
         {agents.length > 0 && (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             {agents.map((agent) => (
               <AgentCard
                 key={agent.id}
@@ -114,6 +116,7 @@ export function AgentInventory({
                 onRunTests={() => onRunTests(agent.id)}
                 onGenerateReport={() => onGenerateReport(agent.id)}
                 onDownloadPdf={() => onDownloadPdf(agent.id, agent.name)}
+                onCompliance={() => onCompliance(agent.id)}
               />
             ))}
           </div>
@@ -132,6 +135,7 @@ function AgentCard({
   onRunTests,
   onGenerateReport,
   onDownloadPdf,
+  onCompliance,
 }: {
   agent: AgentRead;
   isEditing: boolean;
@@ -141,6 +145,7 @@ function AgentCard({
   onRunTests: () => void;
   onGenerateReport: () => void;
   onDownloadPdf: () => void;
+  onCompliance: () => void;
 }) {
   const assessment = agent.latest_assessment;
 
@@ -164,7 +169,7 @@ function AgentCard({
               assessment.risk_level
             )}`}
           >
-            {assessment.risk_level} ? {assessment.risk_score}/100
+            {assessment.risk_level} • {assessment.risk_score}/100
           </span>
         )}
       </div>
@@ -200,7 +205,10 @@ function AgentCard({
         <button onClick={onRunTests} className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-4 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20">
           Tests
         </button>
-        <button onClick={onGenerateReport} className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20">
+        <button onClick={onCompliance} className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20">
+          Compliance
+        </button>
+        <button onClick={onGenerateReport} className="rounded-xl border border-teal-400/30 bg-teal-400/10 px-4 py-3 font-semibold text-teal-100 transition hover:bg-teal-400/20">
           Report
         </button>
         <button onClick={onDownloadPdf} className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 font-semibold text-white transition hover:bg-white/20">
@@ -209,7 +217,7 @@ function AgentCard({
         <button
           onClick={onDelete}
           disabled={isDeleting}
-          className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 font-semibold text-red-100 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
+          className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 font-semibold text-red-100 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isDeleting ? "Deleting..." : "Delete"}
         </button>

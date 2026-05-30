@@ -1,8 +1,9 @@
-﻿import { API_URL, DEMO_API_KEY } from "@/lib/constants";
+import { API_URL, DEMO_API_KEY } from "@/lib/constants";
 import type {
   AgentAssessmentForm,
   AgentRead,
   AuditLogRead,
+  ComplianceMappingResponse,
   HealthStatus,
   ObservabilityMetrics,
   PromptInjectionTestResponse,
@@ -196,3 +197,26 @@ export async function getMetrics(): Promise<ObservabilityMetrics> {
 
   return parseResponse<ObservabilityMetrics>(response);
 }
+
+export async function mapCompliance(
+  payload: AgentAssessmentForm
+): Promise<ComplianceMappingResponse> {
+  const response = await fetch(`${API_URL}/compliance/map`, {
+    method: "POST",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<ComplianceMappingResponse>(response);
+}
+
+export async function mapComplianceForAgent(
+  agentId: number
+): Promise<ComplianceMappingResponse> {
+  const response = await fetch(`${API_URL}/agents/${agentId}/compliance`, {
+    headers: authHeaders(),
+  });
+
+  return parseResponse<ComplianceMappingResponse>(response);
+}
+

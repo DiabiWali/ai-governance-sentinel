@@ -9,6 +9,8 @@ import {
   downloadPdfForAgent,
   downloadPdfForCurrentForm,
   generateRiskReport,
+  mapCompliance,
+  mapComplianceForAgent,
   generateRiskReportForAgent,
   getAgents,
   getAuditLogs,
@@ -32,11 +34,13 @@ import type {
   PromptInjectionTestResponse,
   RiskReportResponse,
   RiskResponse,
+  ComplianceMappingResponse,
   SecurityPrincipal,
 } from "@/types";
 
 import { AgentForm } from "@/components/agents/AgentForm";
 import { AgentInventory } from "@/components/agents/AgentInventory";
+import { CompliancePanel } from "@/components/compliance/CompliancePanel";
 import { CommandCenter } from "@/components/dashboard/CommandCenter";
 import { WorkflowSteps } from "@/components/dashboard/WorkflowSteps";
 import { OverviewCockpit } from "@/components/dashboard/OverviewCockpit";
@@ -58,6 +62,7 @@ export function GovernanceDashboard() {
   const [promptResult, setPromptResult] =
     useState<PromptInjectionTestResponse | null>(null);
   const [report, setReport] = useState<RiskReportResponse | null>(null);
+  const [complianceMapping, setComplianceMapping] = useState<ComplianceMappingResponse | null>(null);
 
   const [agents, setAgents] = useState<AgentRead[]>([]);
   const [principal, setPrincipal] = useState<SecurityPrincipal | null>(null);
@@ -77,6 +82,7 @@ export function GovernanceDashboard() {
   const [deletingAgentId, setDeletingAgentId] = useState<number | null>(null);
   const [promptTesting, setPromptTesting] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
+  const [complianceLoading, setComplianceLoading] = useState(false);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [auditLoading, setAuditLoading] = useState(false);
   const [observabilityLoading, setObservabilityLoading] = useState(false);
@@ -256,6 +262,42 @@ export function GovernanceDashboard() {
       alert("Unable to run tests for this saved agent.");
     } finally {
       setPromptTesting(false);
+    }
+  }
+
+
+  async function handleMapComplianceForCurrentForm() {
+    setComplianceLoading(true);
+
+    try {
+      const data = await mapCompliance(form);
+      setComplianceMapping(data);
+      void loadAuditLogs();
+      void loadObservability();
+      setActiveTab("compliance");
+    } catch (error) {
+      console.error(error);
+      alert("Unable to generate compliance mapping.");
+    } finally {
+      setComplianceLoading(false);
+    }
+  }
+
+  async function handleMapComplianceForAgent(agentId: number) {
+    setComplianceLoading(true);
+
+    try {
+      const data = await mapComplianceForAgent(agentId);
+      setComplianceMapping(data);
+      void loadAuditLogs();
+      void loadObservability();
+      setActiveTab("compliance");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (error) {
+      console.error(error);
+      alert("Unable to generate compliance mapping for this saved agent.");
+    } finally {
+      setComplianceLoading(false);
     }
   }
 
@@ -538,6 +580,7 @@ export function GovernanceDashboard() {
           onRunTests={handleRunPromptTestsForAgent}
           onGenerateReport={handleGenerateReportForAgent}
           onDownloadPdf={handleDownloadPdfForAgent}
+          onCompliance={handleMapComplianceForAgent}
         />
       )}
 
@@ -550,10 +593,10 @@ export function GovernanceDashboard() {
       )}
 
       {activeTab === "compliance" && (
-        <CompliancePreview
-          result={result}
-          promptResult={promptResult}
-          report={report}
+        <CompliancePanel
+          mapping={complianceMapping}
+          loading={complianceLoading}
+          onMapCurrent={handleMapComplianceForCurrentForm}
         />
       )}
 
