@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 from typing import Any
@@ -93,6 +93,8 @@ def run_discovery_scan(request: DiscoveryScanRequest) -> DiscoveryScanResponse:
 
     if source == "n8n":
         assets, scanned_items = scan_n8n(request)
+    elif source in {"endpoint", "endpoint_report", "windows_endpoint", "local_endpoint"}:
+        assets, scanned_items = scan_endpoint_report(request)
     elif source in {"github", "gitlab", "azure_devops", "repository", "code"}:
         assets, scanned_items = scan_code_repository(request)
     else:
@@ -434,3 +436,230 @@ def build_summary(
 
 def has_any(text: str, keywords: list[str]) -> bool:
     return any(keyword.lower() in text for keyword in keywords)
+
+def scan_endpoint_report(request: DiscoveryScanRequest) -> tuple[list[DiscoveredAIAsset], int]:
+    report = request.payload
+    host = report.get("host", {}) if isinstance(report.get("host"), dict) else {}
+    signals = report.get("signals", []) if isinstance(report.get("signals"), list) else []
+
+    hostname = str(host.get("hostname") or request.source_name or "unknown-endpoint")
+    os_name = str(host.get("os") or "unknown")
+
+    assets: list[DiscoveredAIAsset] = []
+
+    grouped = {
+        "n8n": [],
+        "ollama": [],
+        "flowise": [],
+        "langflow": [],
+        "open_webui": [],
+        "docker_ai_stack": [],
+        "coded_ai_tooling": [],
+        "rag_vector_stack": [],
+        "generic_ai_runtime": [],
+    }
+
+    for signal in signals:
+        if not isinstance(signal, dict):
+            continue
+
+        text = json.dumps(signal, ensure_ascii=False).lower()
+
+        if "n8n" in text or "5678" in text:
+            grouped["n8n"].append(signal)
+        elif "ollama" in text or "11434" in text:
+            grouped["ollama"].append(signal)
+        elif "flowise" in text:
+            grouped["flowise"].append(signal)
+        elif "langflow" in text:
+            grouped["langflow"].append(signal)
+        elif "open-webui" in text or "open_webui" in text or "open webui" in text:
+            grouped["open_webui"].append(signal)
+        elif has_any(text, ["qdrant", "weaviate", "chroma", "pinecone", "pgvector", "vector"]):
+            grouped["rag_vector_stack"].append(signal)
+        elif has_any(
+            text,
+            [
+                "n8nio/n8n",
+                "ollama/ollama",
+                "qdrant/qdrant",
+                "weaviate",
+                "chroma",
+                "flowise",
+                "langflow",
+                "open-webui",
+                "open_webui",
+            ],
+        ):
+            grouped["docker_ai_stack"].append(signal)
+        elif has_any(text, ["openai", "langchain", "langgraph", "crewai", "autogen", "llama-index", "llamaindex", "semantic-kernel"]):
+            grouped["coded_ai_tooling"].append(signal)
+        elif has_any(text, ["node.exe", "python.exe", "uvicorn", "fastapi", "localhost:8000", "localhost:3000"]) and has_any(
+            text,
+            [
+                "openai",
+                "azure_openai",
+                "anthropic",
+                "mistral",
+                "ollama",
+                "langchain",
+                "langgraph",
+                "crewai",
+                "autogen",
+                "llama",
+                "qdrant",
+                "rag",
+                "agent",
+                "assistant",
+            ],
+        ):
+            grouped["generic_ai_runtime"].append(signal)
+
+    for asset_key, asset_signals in grouped.items():
+        if not asset_signals:
+            continue
+
+        evidence_text = json.dumps(asset_signals, ensure_ascii=False).lower()
+        provider = detect_provider(evidence_text)
+        connectors = detect_connectors(evidence_text)
+
+        findings = [
+            finding(
+                label="Endpoint Shadow AI signal detected",
+                severity=severity_for_endpoint_asset(asset_key),
+                evidence=f"{len(asset_signals)} signal(s) detected on host {hostname} ({os_name}).",
+            )
+        ]
+
+        for signal in asset_signals[:6]:
+            findings.append(
+                finding(
+                    label=str(signal.get("label") or signal.get("type") or "Endpoint evidence"),
+                    severity=str(signal.get("severity") or severity_for_endpoint_asset(asset_key)),
+                    evidence=str(signal.get("evidence") or signal.get("value") or signal),
+                )
+            )
+
+        confidence = confidence_for_endpoint_asset(asset_key, asset_signals)
+
+        assets.append(
+            DiscoveredAIAsset(
+                name=f"{hostname} - {human_asset_name(asset_key)}",
+                source="endpoint",
+                source_id=f"{hostname}:{asset_key}",
+                detected_type=detected_type_for_endpoint_asset(asset_key),
+                confidence=confidence,
+                model_provider=provider,
+                data_sensitivity=infer_data_sensitivity(evidence_text, connectors),
+                autonomy_level=autonomy_for_endpoint_asset(asset_key),
+                connectors=connectors,
+                internet_exposed=endpoint_exposure_detected(evidence_text),
+                human_approval_required=False,
+                stores_prompts=has_any(evidence_text, ["memory", ".n8n", "chat_history", "conversation", "sqlite", "postgres"]),
+                stores_outputs=has_any(evidence_text, ["log", "database", "postgres", "sqlite", "volume", "storage"]),
+                indicators=sorted({str(signal.get("type") or signal.get("label") or "endpoint_signal") for signal in asset_signals}),
+                findings=findings,
+                recommended_action=recommendation_for(confidence),
+            )
+        )
+
+    return assets, len(signals)
+
+
+def human_asset_name(asset_key: str) -> str:
+    names = {
+        "n8n": "n8n automation instance",
+        "ollama": "local LLM runtime",
+        "flowise": "Flowise AI workflow tool",
+        "langflow": "Langflow AI workflow tool",
+        "open_webui": "Open WebUI local AI interface",
+        "docker_ai_stack": "Docker AI stack",
+        "coded_ai_tooling": "coded AI tooling",
+        "rag_vector_stack": "RAG/vector stack",
+        "generic_ai_runtime": "possible AI runtime",
+    }
+
+    return names.get(asset_key, asset_key.replace("_", " "))
+
+
+def detected_type_for_endpoint_asset(asset_key: str) -> str:
+    mapping = {
+        "n8n": "local_ai_automation_platform",
+        "ollama": "local_llm_runtime",
+        "flowise": "local_ai_workflow_platform",
+        "langflow": "local_ai_workflow_platform",
+        "open_webui": "local_ai_chat_interface",
+        "docker_ai_stack": "local_ai_container_stack",
+        "coded_ai_tooling": "developer_ai_tooling",
+        "rag_vector_stack": "local_rag_vector_stack",
+        "generic_ai_runtime": "possible_shadow_ai_runtime",
+    }
+
+    return mapping.get(asset_key, "endpoint_ai_asset")
+
+
+def confidence_for_endpoint_asset(asset_key: str, signals: list[dict[str, Any]]) -> str:
+    if asset_key in {"n8n", "ollama", "flowise", "langflow", "open_webui"}:
+        return "high"
+
+    if asset_key == "docker_ai_stack":
+        evidence_text = json.dumps(signals, ensure_ascii=False).lower()
+        strong_docker_ai = has_any(
+            evidence_text,
+            [
+                "n8nio/n8n",
+                "ollama/ollama",
+                "qdrant/qdrant",
+                "weaviate",
+                "chroma",
+                "flowise",
+                "langflow",
+                "open-webui",
+                "open_webui",
+            ],
+        )
+        return "high" if strong_docker_ai else "low"
+
+    if asset_key in {"rag_vector_stack", "coded_ai_tooling"}:
+        return "medium" if len(signals) < 3 else "high"
+
+    return "low"
+
+
+def severity_for_endpoint_asset(asset_key: str) -> str:
+    if asset_key in {"n8n", "flowise", "langflow", "open_webui"}:
+        return "high"
+
+    if asset_key in {"ollama", "docker_ai_stack", "rag_vector_stack", "coded_ai_tooling"}:
+        return "medium"
+
+    return "low"
+
+
+def autonomy_for_endpoint_asset(asset_key: str) -> str:
+    if asset_key in {"n8n", "flowise", "langflow"}:
+        return "fully_autonomous"
+
+    if asset_key in {"coded_ai_tooling", "docker_ai_stack"}:
+        return "execute_with_approval"
+
+    return "suggest_action"
+
+
+def endpoint_exposure_detected(text: str) -> bool:
+    return has_any(
+        text,
+        [
+            "0.0.0.0",
+            "listening",
+            "webhook",
+            "public",
+            "5678",
+            "3000",
+            "7860",
+            "8080",
+            "8000",
+            "11434",
+        ],
+    )
+

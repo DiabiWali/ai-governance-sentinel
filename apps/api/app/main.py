@@ -946,3 +946,39 @@ def scan_shadow_ai_assets(
 
     return result
 
+@app.post("/discovery/endpoint/report", response_model=DiscoveryScanResponse)
+def ingest_endpoint_discovery_report(
+    payload: dict,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    host = payload.get("host", {}) if isinstance(payload.get("host"), dict) else {}
+    source_name = str(host.get("hostname") or "endpoint-report")
+
+    request = DiscoveryScanRequest(
+        source="endpoint",
+        source_name=source_name,
+        payload=payload,
+    )
+
+    result = run_discovery_scan(request)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="discovery.endpoint.report",
+        resource_type="discovery",
+        status="success",
+        details={
+            "source": "endpoint",
+            "source_name": source_name,
+            "scanned_items": result.summary.scanned_items,
+            "detected_assets": result.summary.detected_assets,
+            "high_confidence": result.summary.high_confidence,
+            "medium_confidence": result.summary.medium_confidence,
+            "low_confidence": result.summary.low_confidence,
+        },
+    )
+
+    return result
+

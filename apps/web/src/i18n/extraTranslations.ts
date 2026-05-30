@@ -1,8 +1,50 @@
-﻿export const extraTranslations = {
+export const extraTranslations = {
   en: {
     app: {
       footer:
         "AI Governance Sentinel · Inventory, assess, secure, report and monitor enterprise AI agents.",
+    },
+    sidebar: {
+      discovery: "Discovery",
+      discoveryDescription: "Shadow AI detection",
+    },
+    topbar: {
+      discoveryTitle: "Shadow AI discovery",
+      discoverySubtitle: "Detect AI agents, AI workflows, RAG systems and automation risks across external sources.",
+    },
+    discovery: {
+      eyebrow: "AI Discovery Engine",
+      title: "Detect Shadow AI assets",
+      description: "Scan n8n workflows, code repositories or generic JSON payloads to detect hidden AI agents, AI automations and RAG systems.",
+      scan: "Run discovery scan",
+      scanning: "Scanning...",
+      source: "Source",
+      sourceName: "Source name",
+      payload: "Payload JSON",
+      loadN8nSample: "Load n8n sample",
+      loadRepoSample: "Load repository sample",
+      summary: "Discovery summary",
+      scannedItems: "Scanned items",
+      detectedAssets: "Detected assets",
+      highConfidence: "High confidence",
+      mediumConfidence: "Medium confidence",
+      lowConfidence: "Low confidence",
+      noScan: "No discovery scan has been executed yet.",
+      detectedAssetsTitle: "Detected AI assets",
+      promote: "Promote to inventory",
+      confidence: "Confidence",
+      detectedType: "Detected type",
+      provider: "Provider",
+      sensitivity: "Sensitivity",
+      autonomy: "Autonomy",
+      connectors: "Connectors",
+      indicators: "Indicators",
+      findings: "Findings",
+      recommendation: "Recommended action",
+      noConnector: "No connector",
+      promoted: "Asset promoted to governed inventory.",
+      invalidJson: "Invalid JSON payload.",
+      scanFailed: "Unable to run discovery scan."
     },
     charts: {
       riskDistribution: "Risk distribution",

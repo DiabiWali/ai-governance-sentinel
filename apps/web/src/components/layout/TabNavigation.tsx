@@ -1,5 +1,6 @@
-﻿export type DashboardTab =
+export type DashboardTab =
   | "overview"
+  | "discovery"
   | "assessment"
   | "agents"
   | "security"
@@ -18,6 +19,11 @@ const tabs: Array<{
     key: "overview",
     label: "Overview",
     description: "Global command center",
+  },
+  {
+    key: "discovery",
+    label: "Discovery",
+    description: "Shadow AI detection",
   },
   {
     key: "assessment",
