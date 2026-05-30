@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Governance Sentinel API",
     description="API for AI agent inventory, risk scoring, prompt injection testing, reporting and enterprise security.",
-    version="0.8.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
@@ -147,7 +147,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "ai-governance-sentinel-api",
-        "version": "0.8.0",
+        "version": "1.1.0",
     }
 
 
@@ -768,7 +768,7 @@ def liveness_check():
     return {
         "status": "live",
         "service": "ai-governance-sentinel-api",
-        "version": "0.8.0",
+        "version": "1.1.0",
     }
 
 
@@ -781,7 +781,7 @@ def readiness_check(db: Session = Depends(get_db)):
             "status": "ready",
             "service": "ai-governance-sentinel-api",
             "database": "ok",
-            "version": "0.8.0",
+            "version": "1.1.0",
         }
     except Exception as error:
         return JSONResponse(
@@ -791,7 +791,7 @@ def readiness_check(db: Session = Depends(get_db)):
                 "service": "ai-governance-sentinel-api",
                 "database": "error",
                 "detail": str(error),
-                "version": "0.8.0",
+                "version": "1.1.0",
             },
         )
 
@@ -846,7 +846,7 @@ def get_metrics(
 
     return {
         "service": "ai-governance-sentinel-api",
-        "version": "0.8.0",
+        "version": "1.1.0",
         "requested_by": {
             "actor": principal.actor,
             "role": principal.role,
