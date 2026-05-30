@@ -19,3 +19,9 @@ __pycache__/
 # Build
 dist/
 build/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+apps/api/*.db
