@@ -158,3 +158,67 @@ See [Demo Scenarios](docs/demo-scenarios.md).
 ## Roadmap
 
 See [Roadmap](ROADMAP.md).
+
+## Current Capabilities
+
+AI Governance Sentinel currently provides:
+
+- AI agent inventory
+- Dynamic risk scoring
+- PostgreSQL persistence
+- Prompt injection security testing
+- PDF governance report export
+- API key authentication
+- Role-based access control
+- Admin audit logs
+- Frontend governance dashboard
+
+## Security Model
+
+The API is protected with API key authentication using the `X-API-Key` header.
+
+Demo roles:
+
+- `analyst`: can assess agents, run prompt injection tests and generate reports
+- `admin`: can perform analyst actions and access audit logs
+
+Demo keys are provided only for local development and must not be used in production.
+
+## Demo Credentials
+
+For local development:
+
+``txt
+Admin API key: dev-admin-key
+Analyst API key: dev-analyst-key
+``
+
+The frontend uses `NEXT_PUBLIC_DEMO_API_KEY` for local demo purposes.
+
+## API Security Headers
+
+Protected endpoints require the following header:
+
+``txt
+X-API-Key: dev-admin-key
+``
+
+Example:
+
+``bash
+curl -H "X-API-Key: dev-admin-key" http://localhost:8000/auth/me
+``
+
+## Enterprise Security Capabilities
+
+The v0.6.x branch introduces enterprise-oriented controls:
+
+- authenticated API access,
+- role-based authorization,
+- admin-only audit logs,
+- traceability of risk assessments,
+- traceability of prompt injection tests,
+- traceability of report generation,
+- traceability of PDF exports.
+
+These controls are designed to demonstrate how AI governance workflows can be secured and audited in an enterprise information system.
