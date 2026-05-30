@@ -1,4 +1,4 @@
-﻿import type { DashboardTab } from "@/components/layout/TabNavigation";
+import type { DashboardTab } from "@/components/layout/TabNavigation";
 import { LanguageSelector } from "@/i18n/LanguageSelector";
 import { useI18n } from "@/i18n/I18nProvider";
 
@@ -13,6 +13,12 @@ const navItems: Array<{
     labelKey: "sidebar.overview",
     descriptionKey: "sidebar.overviewDescription",
     accent: "bg-cyan-400",
+  },
+  {
+    key: "discovery",
+    labelKey: "sidebar.discovery",
+    descriptionKey: "sidebar.discoveryDescription",
+    accent: "bg-fuchsia-400",
   },
   {
     key: "agents",
