@@ -307,6 +307,9 @@ export function GovernanceDashboard() {
   }
 
   async function handlePromoteDiscoveredAsset(asset: DiscoveredAIAsset) {
+    const persistedDiscoveryAssetId =
+      "id" in asset ? Number((asset as DiscoveredAIAssetRead).id) : null;
+
     setSaving(true);
 
     try {
@@ -335,6 +338,11 @@ export function GovernanceDashboard() {
         });
       }
 
+      if (persistedDiscoveryAssetId) {
+        await updateDiscoveredAssetStatus(persistedDiscoveryAssetId, "promoted");
+      }
+
+      await loadDiscoveryHistory();
       void loadAuditLogs();
       void loadObservability();
       setActiveTab("agents");
@@ -538,6 +546,7 @@ export function GovernanceDashboard() {
         });
       }
 
+      await loadDiscoveryHistory();
       void loadAuditLogs();
       void loadObservability();
       setActiveTab("agents");

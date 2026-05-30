@@ -335,6 +335,7 @@ export function DiscoveryPanel({
         loading={historyLoading}
         onRefresh={onRefreshHistory}
         onUpdateStatus={onUpdateHistoryStatus}
+        onPromoteAsset={(asset) => onPromote(asset)}
       />
     </section>
   );

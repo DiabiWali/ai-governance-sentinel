@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { DiscoveredAIAssetRead } from "@/types";
 import { ActionButton } from "@/components/ui/ActionButton";
@@ -14,11 +14,13 @@ export function DiscoveryHistoryPanel({
   loading,
   onRefresh,
   onUpdateStatus,
+  onPromoteAsset,
 }: {
   assets: DiscoveredAIAssetRead[];
   loading: boolean;
   onRefresh: () => void;
   onUpdateStatus: (assetId: number, status: string) => void;
+  onPromoteAsset: (asset: DiscoveredAIAssetRead) => void;
 }) {
   const { language } = useI18n();
 
@@ -67,6 +69,7 @@ export function DiscoveryHistoryPanel({
               key={asset.id}
               asset={asset}
               onUpdateStatus={onUpdateStatus}
+              onPromoteAsset={onPromoteAsset}
             />
           ))}
         </div>
@@ -78,9 +81,11 @@ export function DiscoveryHistoryPanel({
 function HistoryCard({
   asset,
   onUpdateStatus,
+  onPromoteAsset,
 }: {
   asset: DiscoveredAIAssetRead;
   onUpdateStatus: (assetId: number, status: string) => void;
+  onPromoteAsset: (asset: DiscoveredAIAssetRead) => void;
 }) {
   const { language } = useI18n();
 
@@ -148,8 +153,8 @@ function HistoryCard({
           onClick={() => onUpdateStatus(asset.id, "reviewing")}
         />
         <StatusButton
-          label={language === "fr" ? "Promu" : "Promoted"}
-          onClick={() => onUpdateStatus(asset.id, "promoted")}
+          label={language === "fr" ? "Promouvoir" : "Promote"}
+          onClick={() => onPromoteAsset(asset)}
         />
         <StatusButton
           label={language === "fr" ? "Ignorer" : "Ignore"}
