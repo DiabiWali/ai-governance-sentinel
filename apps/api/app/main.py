@@ -12,8 +12,14 @@ from app.models import (
     AgentAssessmentResponse,
     AgentCreate,
     AgentRead,
+    PromptInjectionScenario,
+    PromptInjectionTestResponse,
     RiskAssessmentRead,
     RiskFactor,
+)
+from app.prompt_tests import (
+    get_prompt_injection_scenarios,
+    run_prompt_injection_tests,
 )
 from app.risk_engine import calculate_risk_score
 
@@ -27,7 +33,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Governance Sentinel API",
     description="API for AI agent inventory, risk scoring and governance controls.",
-    version="0.3.0",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
@@ -98,12 +104,27 @@ def to_agent_read(db: Session, agent: Agent) -> AgentRead:
     )
 
 
+def agent_to_assessment_request(agent: Agent) -> AgentAssessmentRequest:
+    return AgentAssessmentRequest(
+        name=agent.name,
+        purpose=agent.purpose,
+        model_provider=agent.model_provider,
+        data_sensitivity=agent.data_sensitivity,
+        autonomy_level=agent.autonomy_level,
+        connectors=agent.connectors or [],
+        internet_exposed=agent.internet_exposed,
+        human_approval_required=agent.human_approval_required,
+        stores_prompts=agent.stores_prompts,
+        stores_outputs=agent.stores_outputs,
+    )
+
+
 @app.get("/health")
 def health_check():
     return {
         "status": "ok",
         "service": "ai-governance-sentinel-api",
-        "version": "0.3.0",
+        "version": "0.4.0",
     }
 
 
@@ -176,3 +197,32 @@ def create_agent(payload: AgentCreate, db: Session = Depends(get_db)):
     db.refresh(risk_assessment)
 
     return to_agent_read(db, agent)
+
+
+@app.get("/prompt-tests/scenarios", response_model=List[PromptInjectionScenario])
+def list_prompt_injection_scenarios():
+    return get_prompt_injection_scenarios()
+
+
+@app.post("/prompt-tests/run", response_model=PromptInjectionTestResponse)
+def run_prompt_tests(payload: AgentAssessmentRequest):
+    return run_prompt_injection_tests(payload)
+
+
+@app.post("/agents/{agent_id}/prompt-tests/run", response_model=PromptInjectionTestResponse)
+def run_prompt_tests_for_saved_agent(
+    agent_id: int,
+    db: Session = Depends(get_db),
+):
+    agent = (
+        db.query(Agent)
+        .filter(Agent.id == agent_id)
+        .first()
+    )
+
+    if agent is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    payload = agent_to_assessment_request(agent)
+
+    return run_prompt_injection_tests(payload)

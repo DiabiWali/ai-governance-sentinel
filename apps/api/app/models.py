@@ -61,3 +61,33 @@ class AgentRead(BaseModel):
     latest_assessment: Optional[RiskAssessmentRead] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PromptInjectionScenario(BaseModel):
+    id: str
+    title: str
+    category: str
+    severity: str
+    attack_prompt: str
+    expected_control: str
+
+
+class PromptInjectionFinding(BaseModel):
+    scenario_id: str
+    title: str
+    category: str
+    severity: str
+    attack_prompt: str
+    expected_control: str
+    passed: bool
+    finding: str
+    recommendation: str
+
+
+class PromptInjectionTestResponse(BaseModel):
+    agent_name: str
+    total_tests: int
+    passed_tests: int
+    failed_tests: int
+    overall_status: str
+    findings: List[PromptInjectionFinding]
