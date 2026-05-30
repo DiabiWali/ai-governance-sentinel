@@ -74,6 +74,17 @@ type PromptInjectionTestResponse = {
   findings: PromptInjectionFinding[];
 };
 
+type RiskReportResponse = {
+  agent_name: string;
+  generated_at: string;
+  executive_summary: string;
+  agent_profile: AgentAssessmentForm;
+  risk_assessment: RiskResponse;
+  prompt_injection_tests: PromptInjectionTestResponse;
+  recommendations: string[];
+  markdown_report: string;
+};
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 const CONNECTORS = [
@@ -119,10 +130,12 @@ export default function Home() {
   const [result, setResult] = useState<RiskResponse | null>(null);
   const [promptResult, setPromptResult] =
     useState<PromptInjectionTestResponse | null>(null);
+  const [report, setReport] = useState<RiskReportResponse | null>(null);
   const [agents, setAgents] = useState<AgentRead[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [promptTesting, setPromptTesting] = useState(false);
+  const [reportGenerating, setReportGenerating] = useState(false);
   const [inventoryLoading, setInventoryLoading] = useState(false);
 
   useEffect(() => {
@@ -136,10 +149,6 @@ export default function Home() {
       )
     ).length;
   }, [form.connectors]);
-
-  const approvalGap = useMemo(() => {
-    return form.autonomy_level === "fully_autonomous" && !form.human_approval_required;
-  }, [form.autonomy_level, form.human_approval_required]);
 
   const criticalAgents = useMemo(() => {
     return agents.filter((agent) => agent.latest_assessment?.risk_level === "critical")
@@ -173,9 +182,7 @@ export default function Home() {
     setInventoryLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/agents`, {
-        method: "GET",
-      });
+      const response = await fetch(`${API_URL}/agents`);
 
       if (!response.ok) {
         throw new Error("Unable to load agents");
@@ -260,16 +267,65 @@ export default function Home() {
 
       const data = await response.json();
       setPromptResult(data);
-
-      window.scrollTo({
-        top: 0,
-        behavior: "smooth",
-      });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
       alert("Unable to run tests for this saved agent.");
     } finally {
       setPromptTesting(false);
+    }
+  }
+
+  async function generateReportForCurrentForm() {
+    setReportGenerating(true);
+    setReport(null);
+
+    try {
+      const response = await fetch(`${API_URL}/reports/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to generate report");
+      }
+
+      const data = await response.json();
+      setReport(data);
+      setResult(data.risk_assessment);
+      setPromptResult(data.prompt_injection_tests);
+    } catch (error) {
+      console.error(error);
+      alert("Unable to generate report. Make sure FastAPI is running.");
+    } finally {
+      setReportGenerating(false);
+    }
+  }
+
+  async function generateReportForSavedAgent(agentId: number) {
+    setReportGenerating(true);
+    setReport(null);
+
+    try {
+      const response = await fetch(`${API_URL}/agents/${agentId}/report`);
+
+      if (!response.ok) {
+        throw new Error("Unable to generate saved agent report");
+      }
+
+      const data = await response.json();
+      setReport(data);
+      setResult(data.risk_assessment);
+      setPromptResult(data.prompt_injection_tests);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (error) {
+      console.error(error);
+      alert("Unable to generate report for this saved agent.");
+    } finally {
+      setReportGenerating(false);
     }
   }
 
@@ -312,6 +368,30 @@ export default function Home() {
     }
   }
 
+  function downloadMarkdownReport() {
+    if (!report) {
+      return;
+    }
+
+    const safeName = report.agent_name
+      .toLowerCase()
+      .replaceAll(" ", "-")
+      .replace(/[^a-z0-9-_]/g, "");
+
+    const blob = new Blob([report.markdown_report], {
+      type: "text/markdown;charset=utf-8",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `ai-risk-report-${safeName || "agent"}.md`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+  }
+
   function loadAgentIntoForm(agent: AgentRead) {
     setForm({
       name: agent.name,
@@ -336,6 +416,7 @@ export default function Home() {
     }
 
     setPromptResult(null);
+    setReport(null);
   }
 
   return (
@@ -351,8 +432,8 @@ export default function Home() {
               AI Governance Sentinel
             </h1>
             <p className="mt-5 text-lg leading-8 text-slate-300">
-              Inventory, assess and secure enterprise AI agents before they become a risk
-              for your information system.
+              Inventory, assess, test and report on enterprise AI agents before they
+              become a risk for your information system.
             </p>
           </div>
         </header>
@@ -362,8 +443,8 @@ export default function Home() {
           <KpiCard label="Critical agents" value={String(criticalAgents)} />
           <KpiCard label="Sensitive connectors" value={String(sensitiveConnectorCount)} />
           <KpiCard
-            label="Prompt test status"
-            value={promptResult ? promptResult.overall_status : "Not tested"}
+            label="Report status"
+            value={report ? "Generated" : "Not generated"}
           />
         </section>
 
@@ -373,34 +454,42 @@ export default function Home() {
               <div>
                 <h2 className="text-2xl font-semibold">AI agent assessment</h2>
                 <p className="mt-2 max-w-2xl text-slate-400">
-                  Describe an AI agent, assess its risk, save it into the inventory and
-                  run prompt injection security tests.
+                  Describe an AI agent, assess its risk, run security tests and generate
+                  an exportable governance report.
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <button
                   onClick={runAssessment}
-                  disabled={loading || saving || promptTesting}
-                  className="min-w-[160px] whitespace-nowrap rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={loading || saving || promptTesting || reportGenerating}
+                  className="min-w-[150px] whitespace-nowrap rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {loading ? "Assessing..." : "Run assessment"}
+                  {loading ? "Assessing..." : "Assess"}
                 </button>
 
                 <button
                   onClick={runPromptTestsForCurrentForm}
-                  disabled={loading || saving || promptTesting}
-                  className="min-w-[170px] whitespace-nowrap rounded-xl border border-purple-400/40 bg-purple-400/10 px-5 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={loading || saving || promptTesting || reportGenerating}
+                  className="min-w-[150px] whitespace-nowrap rounded-xl border border-purple-400/40 bg-purple-400/10 px-5 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {promptTesting ? "Testing..." : "Run security tests"}
+                  {promptTesting ? "Testing..." : "Security tests"}
+                </button>
+
+                <button
+                  onClick={generateReportForCurrentForm}
+                  disabled={loading || saving || promptTesting || reportGenerating}
+                  className="min-w-[160px] whitespace-nowrap rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-5 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {reportGenerating ? "Generating..." : "Generate report"}
                 </button>
 
                 <button
                   onClick={saveAgent}
-                  disabled={loading || saving || promptTesting}
-                  className="min-w-[150px] whitespace-nowrap rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={loading || saving || promptTesting || reportGenerating}
+                  className="min-w-[130px] whitespace-nowrap rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {saving ? "Saving..." : "Save agent"}
+                  {saving ? "Saving..." : "Save"}
                 </button>
               </div>
             </div>
@@ -578,6 +667,86 @@ export default function Home() {
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
+              <h2 className="text-2xl font-semibold">Risk report export</h2>
+              <p className="mt-2 text-slate-400">
+                Generate an executive and technical report combining the agent profile,
+                risk score, prompt injection findings and remediation plan.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={generateReportForCurrentForm}
+                disabled={reportGenerating}
+                className="min-w-[170px] whitespace-nowrap rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-5 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {reportGenerating ? "Generating..." : "Generate report"}
+              </button>
+
+              <button
+                onClick={downloadMarkdownReport}
+                disabled={!report}
+                className="min-w-[180px] whitespace-nowrap rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Download Markdown
+              </button>
+            </div>
+          </div>
+
+          {!report && (
+            <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
+              No report generated yet.
+            </div>
+          )}
+
+          {report && (
+            <div className="mt-6 grid gap-6 lg:grid-cols-[360px_1fr]">
+              <div className={`rounded-2xl border p-5 ${riskTone(report.risk_assessment.risk_level)}`}>
+                <p className="text-sm uppercase tracking-wide">Generated report</p>
+                <h3 className="mt-2 text-2xl font-bold">{report.agent_name}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-300">
+                  {report.executive_summary}
+                </p>
+
+                <div className="mt-5 grid gap-3">
+                  <MiniInfo
+                    label="Risk score"
+                    value={`${report.risk_assessment.risk_score}/100`}
+                  />
+                  <MiniInfo
+                    label="Risk level"
+                    value={report.risk_assessment.risk_level}
+                  />
+                  <MiniInfo
+                    label="Prompt tests failed"
+                    value={String(report.prompt_injection_tests.failed_tests)}
+                  />
+                  <MiniInfo
+                    label="Generated at"
+                    value={new Date(report.generated_at).toLocaleString()}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <h3 className="text-lg font-semibold">Markdown preview</h3>
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
+                    .md export
+                  </span>
+                </div>
+
+                <pre className="mt-4 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-slate-300">
+                  {report.markdown_report}
+                </pre>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
               <h2 className="text-2xl font-semibold">Prompt injection test suite</h2>
               <p className="mt-2 text-slate-400">
                 Simulated security tests evaluate whether the agent configuration is
@@ -650,7 +819,7 @@ export default function Home() {
           <div className="mt-6">
             {agents.length === 0 && (
               <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
-                No saved agents yet. Fill the assessment form and click Save agent.
+                No saved agents yet. Fill the assessment form and click Save.
               </div>
             )}
 
@@ -662,6 +831,7 @@ export default function Home() {
                     agent={agent}
                     onLoad={() => loadAgentIntoForm(agent)}
                     onRunTests={() => runPromptTestsForSavedAgent(agent.id)}
+                    onGenerateReport={() => generateReportForSavedAgent(agent.id)}
                   />
                 ))}
               </div>
@@ -736,10 +906,12 @@ function AgentCard({
   agent,
   onLoad,
   onRunTests,
+  onGenerateReport,
 }: {
   agent: AgentRead;
   onLoad: () => void;
   onRunTests: () => void;
+  onGenerateReport: () => void;
 }) {
   const assessment = agent.latest_assessment;
 
@@ -788,19 +960,26 @@ function AgentCard({
         ))}
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <button
           onClick={onLoad}
           className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-slate-100 transition hover:border-cyan-400/50 hover:bg-cyan-400/10"
         >
-          Load into form
+          Load
         </button>
 
         <button
           onClick={onRunTests}
           className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-4 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20"
         >
-          Run tests
+          Tests
+        </button>
+
+        <button
+          onClick={onGenerateReport}
+          className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
+        >
+          Report
         </button>
       </div>
     </article>
