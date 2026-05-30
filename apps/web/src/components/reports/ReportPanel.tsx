@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import type { RiskReportResponse } from "@/types";
 import { formatDateTime } from "@/lib/formatters";
 import { riskTone } from "@/lib/risk";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { useI18n } from "@/i18n/I18nProvider";
+import { formatPosture, formatRiskLevel } from "@/lib/labels";
 
 export function ReportPanel({
   report,
@@ -19,7 +20,7 @@ export function ReportPanel({
   onDownloadMarkdown: () => void;
   onDownloadPdf: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   return (
     <section
@@ -83,7 +84,7 @@ export function ReportPanel({
                 />
                 <MiniInfo
                   label={t("reportsModule.riskLevel")}
-                  value={report.risk_assessment.risk_level}
+                  value={formatRiskLevel(report.risk_assessment.risk_level, language)}
                 />
                 <MiniInfo
                   label={t("reportsModule.failedTests")}
@@ -113,7 +114,7 @@ function ReportComplianceSummary({
 }: {
   report: RiskReportResponse;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const mapping = report.compliance_mapping;
 
   if (!mapping) {
@@ -139,7 +140,7 @@ function ReportComplianceSummary({
         <span className="text-xl opacity-70">/100</span>
       </p>
       <p className="mt-3 text-xl font-semibold capitalize">
-        {mapping.overall_posture}
+        {formatPosture(mapping.overall_posture, language)}
       </p>
 
       <div className="mt-5 grid gap-3">

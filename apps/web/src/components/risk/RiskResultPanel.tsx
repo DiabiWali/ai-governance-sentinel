@@ -1,7 +1,13 @@
+﻿"use client";
+
 import type { RiskResponse } from "@/types";
 import { riskTone } from "@/lib/risk";
+import { useI18n } from "@/i18n/I18nProvider";
+import { formatRiskLevel, formatSeverity } from "@/lib/labels";
 
 export function RiskResultPanel({ result }: { result: RiskResponse | null }) {
+  const { language } = useI18n();
+
   return (
     <aside className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur">
       <p className="text-sm uppercase tracking-[0.24em] text-cyan-300">
@@ -18,7 +24,9 @@ export function RiskResultPanel({ result }: { result: RiskResponse | null }) {
       {result && (
         <div className="mt-6">
           <div className={`rounded-3xl border p-6 ${riskTone(result.risk_level)}`}>
-            <p className="text-sm uppercase tracking-wide">{result.risk_level} risk</p>
+            <p className="text-sm uppercase tracking-wide">
+              {formatRiskLevel(result.risk_level, language)} risk
+            </p>
             <p className="mt-3 text-6xl font-bold">
               {result.risk_score}
               <span className="text-xl text-slate-400">/100</span>
@@ -44,7 +52,7 @@ export function RiskResultPanel({ result }: { result: RiskResponse | null }) {
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="font-semibold text-white">{factor.label}</h3>
                   <span className="rounded-full bg-white/10 px-3 py-1 text-xs uppercase text-slate-300">
-                    {factor.severity}
+                    {formatSeverity(factor.severity, language)}
                   </span>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-slate-400">

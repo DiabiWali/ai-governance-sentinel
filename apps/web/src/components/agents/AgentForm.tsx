@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { AUTONOMY_OPTIONS, CONNECTORS, DATA_SENSITIVITY_OPTIONS } from "@/lib/constants";
 import type { AgentAssessmentForm } from "@/types";
@@ -6,6 +6,7 @@ import { ActionButton } from "@/components/ui/ActionButton";
 import { Field } from "@/components/ui/Field";
 import { Toggle } from "@/components/ui/Toggle";
 import { useI18n } from "@/i18n/I18nProvider";
+import { formatAutonomyLevel, formatDataSensitivity } from "@/lib/labels";
 
 export function AgentForm({
   form,
@@ -41,7 +42,7 @@ export function AgentForm({
   ) => void;
   onToggleConnector: (connector: string) => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const disabled = loading || saving || promptTesting || reportGenerating;
 
   return (
@@ -127,7 +128,7 @@ export function AgentForm({
             >
               {DATA_SENSITIVITY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {formatDataSensitivity(option.value, language)}
                 </option>
               ))}
             </select>
@@ -141,7 +142,7 @@ export function AgentForm({
             >
               {AUTONOMY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {formatAutonomyLevel(option.value, language)}
                 </option>
               ))}
             </select>

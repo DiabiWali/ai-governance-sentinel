@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type {
   ComplianceControlMapping,
@@ -8,6 +8,7 @@ import type {
 import { formatDateTime } from "@/lib/formatters";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { useI18n } from "@/i18n/I18nProvider";
+import { formatComplianceStatus, formatPosture, formatSeverity } from "@/lib/labels";
 
 export function CompliancePanel({
   mapping,
@@ -18,7 +19,7 @@ export function CompliancePanel({
   loading: boolean;
   onMapCurrent: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur">
@@ -76,7 +77,7 @@ export function CompliancePanel({
 }
 
 function ComplianceSummary({ mapping }: { mapping: ComplianceMappingResponse }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   return (
     <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
@@ -89,7 +90,7 @@ function ComplianceSummary({ mapping }: { mapping: ComplianceMappingResponse }) 
           <span className="text-xl opacity-70">/100</span>
         </p>
         <p className="mt-4 text-2xl font-semibold capitalize">
-          {mapping.overall_posture}
+          {formatPosture(mapping.overall_posture, language)}
         </p>
         <p className="mt-4 text-sm opacity-80">Agent: {mapping.agent_name}</p>
       </div>
@@ -113,7 +114,7 @@ function ComplianceSummary({ mapping }: { mapping: ComplianceMappingResponse }) 
 }
 
 function FrameworkPanel({ framework }: { framework: ComplianceFrameworkMapping }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   return (
     <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-5">
@@ -127,7 +128,7 @@ function FrameworkPanel({ framework }: { framework: ComplianceFrameworkMapping }
 
         <div className={`rounded-2xl border px-4 py-3 text-center ${postureTone(framework.posture)}`}>
           <p className="text-2xl font-bold">{framework.score}</p>
-          <p className="text-xs uppercase">{framework.posture}</p>
+          <p className="text-xs uppercase">{formatPosture(framework.posture, language)}</p>
         </div>
       </div>
 
@@ -141,7 +142,7 @@ function FrameworkPanel({ framework }: { framework: ComplianceFrameworkMapping }
 }
 
 function ControlCard({ control }: { control: ComplianceControlMapping }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   return (
     <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -152,10 +153,10 @@ function ControlCard({ control }: { control: ComplianceControlMapping }) {
               {control.control_id}
             </span>
             <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${statusBadge(control.status)}`}>
-              {control.status}
+              {formatComplianceStatus(control.status, language)}
             </span>
             <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${severityBadge(control.severity)}`}>
-              {control.severity}
+              {formatSeverity(control.severity, language)}
             </span>
           </div>
 

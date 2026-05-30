@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import type { AgentRead } from "@/types";
-import { humanizeEnum } from "@/lib/formatters";
+import { formatAutonomyLevel, formatDataSensitivity, formatRiskLevel } from "@/lib/labels";
 import { riskBadge } from "@/lib/risk";
 import { ActionButton } from "@/components/ui/ActionButton";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -154,7 +154,7 @@ function AgentCard({
   onDownloadPdf: () => void;
   onCompliance: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const assessment = agent.latest_assessment;
 
   return (
@@ -187,11 +187,11 @@ function AgentCard({
       <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <MiniInfo
           label={t("agentsModule.sensitivity")}
-          value={humanizeEnum(agent.data_sensitivity)}
+          value={formatDataSensitivity(agent.data_sensitivity, language)}
         />
         <MiniInfo
           label={t("agentsModule.autonomy")}
-          value={humanizeEnum(agent.autonomy_level)}
+          value={formatAutonomyLevel(agent.autonomy_level, language)}
         />
       </div>
 
