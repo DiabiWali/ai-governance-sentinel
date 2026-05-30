@@ -2,6 +2,8 @@
 
 **AI Governance Sentinel** is an open-source platform designed to inventory, assess and secure enterprise AI agents, RAG systems and automation workflows.
 
+![AI Governance Sentinel Dashboard](docs/assets/dashboard-v0.1.0.png)
+
 This project is not another chatbot. It is a governance and security control plane for enterprise AI adoption.
 
 ## Problem
