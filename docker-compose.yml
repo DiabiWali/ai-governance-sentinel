@@ -1,27 +1,58 @@
 ﻿services:
   postgres:
-    image: postgres:16
-    container_name: ai-governance-sentinel-db
+    image: postgres:16-alpine
+    container_name: ai-governance-sentinel-postgres
+    restart: unless-stopped
     environment:
+      POSTGRES_DB: ai_governance_sentinel
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: ai_governance_sentinel
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ai_governance_sentinel_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_governance_sentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api:
     build:
       context: ./apps/api
+      dockerfile: Dockerfile
     container_name: ai-governance-sentinel-api
+    restart: unless-stopped
+    environment:
+      APP_ENV: docker
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ai_governance_sentinel
+      API_KEY: dev-analyst-key
+      ADMIN_API_KEY: dev-admin-key
     ports:
       - "8000:8000"
-    environment:
-      APP_ENV: development
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ai_governance_sentinel
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/live').read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_DEMO_API_KEY: dev-admin-key
+    container_name: ai-governance-sentinel-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
-  postgres_data:
+  ai_governance_sentinel_postgres_data:

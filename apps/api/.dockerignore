@@ -1,0 +1,16 @@
+﻿.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.env
+*.db
+*.sqlite
+*.sqlite3
+ai_governance_sentinel.db
+risk-report-*.md
+risk-report-*.pdf
+ai-risk-report-*.md
+ai-risk-report-*.pdf

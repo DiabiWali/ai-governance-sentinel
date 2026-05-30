@@ -31,3 +31,16 @@ ai-risk-report-*.pdf
 ai-risk-report-*.md
 risk-report-*.pdf
 risk-report-*.md
+
+# Docker / local runtime
+apps/api/.env
+apps/web/.env.local
+apps/api/*.db
+apps/api/*.sqlite
+apps/api/*.sqlite3
+
+# Generated reports
+ai-risk-report-*.pdf
+ai-risk-report-*.md
+risk-report-*.pdf
+risk-report-*.md
