@@ -13,8 +13,10 @@ from app.models import (
     AgentAssessmentRequest,
     AgentAssessmentResponse,
     AgentCreate,
+    AgentUpdate,
     AgentRead,
     AuditLogRead,
+    DeleteResponse,
     PromptInjectionScenario,
     PromptInjectionTestResponse,
     RiskAssessmentRead,
@@ -41,7 +43,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Governance Sentinel API",
     description="API for AI agent inventory, risk scoring, prompt injection testing, reporting and enterprise security.",
-    version="0.6.0",
+    version="0.7.0",
     lifespan=lifespan,
 )
 
@@ -132,7 +134,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "ai-governance-sentinel-api",
-        "version": "0.6.0",
+        "version": "0.7.0",
     }
 
 
@@ -600,3 +602,123 @@ def generate_pdf_report_for_saved_agent(
             "Content-Disposition": f'attachment; filename="{filename}"'
         },
     )
+
+
+
+@app.put("/agents/{agent_id}", response_model=AgentRead)
+def update_agent(
+    agent_id: int,
+    payload: AgentUpdate,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    agent = (
+        db.query(Agent)
+        .filter(Agent.id == agent_id)
+        .first()
+    )
+
+    if agent is None:
+        write_audit_log(
+            db=db,
+            principal=principal,
+            action="agents.update",
+            resource_type="agent",
+            resource_id=str(agent_id),
+            status="not_found",
+        )
+
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    update_data = payload.model_dump(exclude_unset=True)
+
+    for field, value in update_data.items():
+        setattr(agent, field, value)
+
+    db.add(agent)
+    db.commit()
+    db.refresh(agent)
+
+    assessment_payload = agent_to_assessment_request(agent)
+    assessment = calculate_risk_score(assessment_payload)
+
+    risk_assessment = RiskAssessment(
+        agent_id=agent.id,
+        risk_score=assessment.risk_score,
+        risk_level=assessment.risk_level,
+        factors=[
+            dump_factor(factor)
+            for factor in assessment.factors
+        ],
+    )
+
+    db.add(risk_assessment)
+    db.commit()
+    db.refresh(risk_assessment)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="agents.update",
+        resource_type="agent",
+        resource_id=str(agent.id),
+        status="success",
+        details={
+            "agent_name": agent.name,
+            "updated_fields": list(update_data.keys()),
+            "risk_score": assessment.risk_score,
+            "risk_level": assessment.risk_level,
+        },
+    )
+
+    return to_agent_read(db, agent)
+
+
+@app.delete("/agents/{agent_id}", response_model=DeleteResponse)
+def delete_agent(
+    agent_id: int,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_admin),
+):
+    agent = (
+        db.query(Agent)
+        .filter(Agent.id == agent_id)
+        .first()
+    )
+
+    if agent is None:
+        write_audit_log(
+            db=db,
+            principal=principal,
+            action="agents.delete",
+            resource_type="agent",
+            resource_id=str(agent_id),
+            status="not_found",
+        )
+
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    agent_name = agent.name
+
+    db.delete(agent)
+    db.commit()
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="agents.delete",
+        resource_type="agent",
+        resource_id=str(agent_id),
+        status="success",
+        details={
+            "agent_name": agent_name,
+        },
+    )
+
+    return DeleteResponse(
+        deleted=True,
+        resource_type="agent",
+        resource_id=agent_id,
+    )
+
+

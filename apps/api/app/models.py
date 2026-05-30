@@ -34,6 +34,25 @@ class AgentCreate(AgentAssessmentRequest):
     pass
 
 
+class AgentUpdate(BaseModel):
+    name: Optional[str] = None
+    purpose: Optional[str] = None
+    model_provider: Optional[str] = None
+    data_sensitivity: Optional[str] = None
+    autonomy_level: Optional[str] = None
+    connectors: Optional[List[str]] = None
+    internet_exposed: Optional[bool] = None
+    human_approval_required: Optional[bool] = None
+    stores_prompts: Optional[bool] = None
+    stores_outputs: Optional[bool] = None
+
+
+class DeleteResponse(BaseModel):
+    deleted: bool
+    resource_type: str
+    resource_id: int
+
+
 class RiskAssessmentRead(BaseModel):
     id: int
     risk_score: int
@@ -121,3 +140,4 @@ class AuditLogRead(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
