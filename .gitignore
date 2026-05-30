@@ -44,3 +44,8 @@ ai-risk-report-*.pdf
 ai-risk-report-*.md
 risk-report-*.pdf
 risk-report-*.md
+
+# Generated governance reports
+ai-governance-report-*.pdf
+ai-risk-report-*.pdf
+risk-report-*.pdf
