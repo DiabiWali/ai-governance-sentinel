@@ -85,7 +85,25 @@ type RiskReportResponse = {
   markdown_report: string;
 };
 
+type SecurityPrincipal = {
+  actor: string;
+  role: string;
+};
+
+type AuditLogRead = {
+  id: number;
+  actor: string;
+  role: string;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  status: string;
+  details: Record<string, unknown>;
+  created_at: string;
+};
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const DEMO_API_KEY = process.env.NEXT_PUBLIC_DEMO_API_KEY || "dev-admin-key";
 
 const CONNECTORS = [
   "sharepoint",
@@ -125,6 +143,19 @@ const INITIAL_FORM: AgentAssessmentForm = {
   stores_outputs: true,
 };
 
+function authHeaders(): HeadersInit {
+  return {
+    "X-API-Key": DEMO_API_KEY,
+  };
+}
+
+function jsonAuthHeaders(): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    "X-API-Key": DEMO_API_KEY,
+  };
+}
+
 export default function Home() {
   const [form, setForm] = useState<AgentAssessmentForm>(INITIAL_FORM);
   const [result, setResult] = useState<RiskResponse | null>(null);
@@ -132,14 +163,20 @@ export default function Home() {
     useState<PromptInjectionTestResponse | null>(null);
   const [report, setReport] = useState<RiskReportResponse | null>(null);
   const [agents, setAgents] = useState<AgentRead[]>([]);
+  const [principal, setPrincipal] = useState<SecurityPrincipal | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLogRead[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [promptTesting, setPromptTesting] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
   const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   useEffect(() => {
+    loadCurrentPrincipal();
     loadAgents();
+    loadAuditLogs();
   }, []);
 
   const sensitiveConnectorCount = useMemo(() => {
@@ -178,11 +215,53 @@ export default function Home() {
     });
   }
 
+  async function loadCurrentPrincipal() {
+    try {
+      const response = await fetch(`${API_URL}/auth/me`, {
+        headers: authHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to load current principal");
+      }
+
+      const data = await response.json();
+      setPrincipal(data);
+    } catch (error) {
+      console.error(error);
+      setPrincipal(null);
+    }
+  }
+
+  async function loadAuditLogs() {
+    setAuditLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/audit-logs?limit=20`, {
+        headers: authHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to load audit logs");
+      }
+
+      const data = await response.json();
+      setAuditLogs(data);
+    } catch (error) {
+      console.error(error);
+      setAuditLogs([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
   async function loadAgents() {
     setInventoryLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/agents`);
+      const response = await fetch(`${API_URL}/agents`, {
+        headers: authHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error("Unable to load agents");
@@ -192,7 +271,7 @@ export default function Home() {
       setAgents(data);
     } catch (error) {
       console.error(error);
-      alert("Unable to load agents. Make sure FastAPI is running on port 8000.");
+      alert("Unable to load agents. Check the API key and FastAPI server.");
     } finally {
       setInventoryLoading(false);
     }
@@ -205,9 +284,7 @@ export default function Home() {
     try {
       const response = await fetch(`${API_URL}/risk/assess`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(form),
       });
 
@@ -217,9 +294,10 @@ export default function Home() {
 
       const data = await response.json();
       setResult(data);
+      loadAuditLogs();
     } catch (error) {
       console.error(error);
-      alert("Unable to reach the API. Make sure FastAPI is running on port 8000.");
+      alert("Unable to reach the API. Check the API key and FastAPI server.");
     } finally {
       setLoading(false);
     }
@@ -232,9 +310,7 @@ export default function Home() {
     try {
       const response = await fetch(`${API_URL}/prompt-tests/run`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(form),
       });
 
@@ -244,9 +320,10 @@ export default function Home() {
 
       const data = await response.json();
       setPromptResult(data);
+      loadAuditLogs();
     } catch (error) {
       console.error(error);
-      alert("Unable to run prompt injection tests. Make sure FastAPI is running.");
+      alert("Unable to run prompt injection tests. Check the API key and FastAPI server.");
     } finally {
       setPromptTesting(false);
     }
@@ -259,6 +336,7 @@ export default function Home() {
     try {
       const response = await fetch(`${API_URL}/agents/${agentId}/prompt-tests/run`, {
         method: "POST",
+        headers: authHeaders(),
       });
 
       if (!response.ok) {
@@ -267,6 +345,7 @@ export default function Home() {
 
       const data = await response.json();
       setPromptResult(data);
+      loadAuditLogs();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
@@ -283,9 +362,7 @@ export default function Home() {
     try {
       const response = await fetch(`${API_URL}/reports/generate`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(form),
       });
 
@@ -297,9 +374,10 @@ export default function Home() {
       setReport(data);
       setResult(data.risk_assessment);
       setPromptResult(data.prompt_injection_tests);
+      loadAuditLogs();
     } catch (error) {
       console.error(error);
-      alert("Unable to generate report. Make sure FastAPI is running.");
+      alert("Unable to generate report. Check the API key and FastAPI server.");
     } finally {
       setReportGenerating(false);
     }
@@ -310,7 +388,9 @@ export default function Home() {
     setReport(null);
 
     try {
-      const response = await fetch(`${API_URL}/agents/${agentId}/report`);
+      const response = await fetch(`${API_URL}/agents/${agentId}/report`, {
+        headers: authHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error("Unable to generate saved agent report");
@@ -320,6 +400,7 @@ export default function Home() {
       setReport(data);
       setResult(data.risk_assessment);
       setPromptResult(data.prompt_injection_tests);
+      loadAuditLogs();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
@@ -335,9 +416,7 @@ export default function Home() {
     try {
       const response = await fetch(`${API_URL}/reports/generate/pdf`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(form),
       });
 
@@ -347,9 +426,10 @@ export default function Home() {
 
       const blob = await response.blob();
       downloadBlob(blob, `ai-risk-report-${safeFileName(form.name)}.pdf`);
+      loadAuditLogs();
     } catch (error) {
       console.error(error);
-      alert("Unable to generate PDF report. Make sure FastAPI is running.");
+      alert("Unable to generate PDF report. Check the API key and FastAPI server.");
     } finally {
       setReportGenerating(false);
     }
@@ -359,7 +439,9 @@ export default function Home() {
     setReportGenerating(true);
 
     try {
-      const response = await fetch(`${API_URL}/agents/${agentId}/report/pdf`);
+      const response = await fetch(`${API_URL}/agents/${agentId}/report/pdf`, {
+        headers: authHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error("Unable to generate saved agent PDF report");
@@ -367,6 +449,7 @@ export default function Home() {
 
       const blob = await response.blob();
       downloadBlob(blob, `ai-risk-report-${safeFileName(agentName)}.pdf`);
+      loadAuditLogs();
     } catch (error) {
       console.error(error);
       alert("Unable to generate PDF report for this saved agent.");
@@ -381,9 +464,7 @@ export default function Home() {
     try {
       const response = await fetch(`${API_URL}/agents`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: jsonAuthHeaders(),
         body: JSON.stringify(form),
       });
 
@@ -406,9 +487,11 @@ export default function Home() {
           factors: savedAgent.latest_assessment.factors,
         });
       }
+
+      loadAuditLogs();
     } catch (error) {
       console.error(error);
-      alert("Unable to save agent. Make sure PostgreSQL and FastAPI are running.");
+      alert("Unable to save agent. Check PostgreSQL, FastAPI and the API key.");
     } finally {
       setSaving(false);
     }
@@ -486,20 +569,50 @@ export default function Home() {
               AI Governance Sentinel
             </h1>
             <p className="mt-5 text-lg leading-8 text-slate-300">
-              Inventory, assess, test and report on enterprise AI agents before they
+              Inventory, assess, test, report and audit enterprise AI agents before they
               become a risk for your information system.
             </p>
           </div>
         </header>
 
+        <section className="rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-wide text-cyan-200">
+                Enterprise security context
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold">
+                {principal ? `${principal.actor} · ${principal.role}` : "Not authenticated"}
+              </h2>
+              <p className="mt-2 text-sm text-slate-300">
+                Frontend requests are authenticated with the demo API key through the
+                <span className="font-mono text-cyan-200"> X-API-Key</span> header.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={loadCurrentPrincipal}
+                className="rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-400/20"
+              >
+                Refresh identity
+              </button>
+
+              <button
+                onClick={loadAuditLogs}
+                className="rounded-xl border border-white/10 bg-slate-900 px-5 py-3 font-semibold text-slate-100 transition hover:border-cyan-400/50"
+              >
+                Refresh audit logs
+              </button>
+            </div>
+          </div>
+        </section>
+
         <section className="grid gap-5 md:grid-cols-4">
           <KpiCard label="Saved agents" value={String(agents.length)} />
           <KpiCard label="Critical agents" value={String(criticalAgents)} />
           <KpiCard label="Sensitive connectors" value={String(sensitiveConnectorCount)} />
-          <KpiCard
-            label="Report status"
-            value={report ? "Generated" : "Not generated"}
-          />
+          <KpiCard label="Audit events" value={String(auditLogs.length)} />
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1fr_420px]">
@@ -514,45 +627,11 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <button
-                  onClick={runAssessment}
-                  disabled={loading || saving || promptTesting || reportGenerating}
-                  className="min-w-[150px] whitespace-nowrap rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loading ? "Assessing..." : "Assess"}
-                </button>
-
-                <button
-                  onClick={runPromptTestsForCurrentForm}
-                  disabled={loading || saving || promptTesting || reportGenerating}
-                  className="min-w-[150px] whitespace-nowrap rounded-xl border border-purple-400/40 bg-purple-400/10 px-5 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {promptTesting ? "Testing..." : "Security tests"}
-                </button>
-
-                <button
-                  onClick={generateReportForCurrentForm}
-                  disabled={loading || saving || promptTesting || reportGenerating}
-                  className="min-w-[160px] whitespace-nowrap rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-5 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {reportGenerating ? "Generating..." : "Generate report"}
-                </button>
-
-                <button
-                  onClick={downloadPdfReportForCurrentForm}
-                  disabled={loading || saving || promptTesting || reportGenerating}
-                  className="min-w-[150px] whitespace-nowrap rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  PDF
-                </button>
-
-                <button
-                  onClick={saveAgent}
-                  disabled={loading || saving || promptTesting || reportGenerating}
-                  className="min-w-[130px] whitespace-nowrap rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
+                <ActionButton label={loading ? "Assessing..." : "Assess"} onClick={runAssessment} disabled={loading || saving || promptTesting || reportGenerating} />
+                <ActionButton label={promptTesting ? "Testing..." : "Security tests"} onClick={runPromptTestsForCurrentForm} disabled={loading || saving || promptTesting || reportGenerating} variant="purple" />
+                <ActionButton label={reportGenerating ? "Generating..." : "Generate report"} onClick={generateReportForCurrentForm} disabled={loading || saving || promptTesting || reportGenerating} variant="green" />
+                <ActionButton label="PDF" onClick={downloadPdfReportForCurrentForm} disabled={loading || saving || promptTesting || reportGenerating} variant="white" />
+                <ActionButton label={saving ? "Saving..." : "Save"} onClick={saveAgent} disabled={loading || saving || promptTesting || reportGenerating} variant="solid" />
               </div>
             </div>
 
@@ -640,29 +719,10 @@ export default function Home() {
               </Field>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <Toggle
-                  label="Internet exposed"
-                  checked={form.internet_exposed}
-                  onChange={(checked) => updateField("internet_exposed", checked)}
-                />
-
-                <Toggle
-                  label="Human approval required"
-                  checked={form.human_approval_required}
-                  onChange={(checked) => updateField("human_approval_required", checked)}
-                />
-
-                <Toggle
-                  label="Stores prompts"
-                  checked={form.stores_prompts}
-                  onChange={(checked) => updateField("stores_prompts", checked)}
-                />
-
-                <Toggle
-                  label="Stores outputs"
-                  checked={form.stores_outputs}
-                  onChange={(checked) => updateField("stores_outputs", checked)}
-                />
+                <Toggle label="Internet exposed" checked={form.internet_exposed} onChange={(checked) => updateField("internet_exposed", checked)} />
+                <Toggle label="Human approval required" checked={form.human_approval_required} onChange={(checked) => updateField("human_approval_required", checked)} />
+                <Toggle label="Stores prompts" checked={form.stores_prompts} onChange={(checked) => updateField("stores_prompts", checked)} />
+                <Toggle label="Stores outputs" checked={form.stores_outputs} onChange={(checked) => updateField("stores_outputs", checked)} />
               </div>
             </div>
           </div>
@@ -737,29 +797,9 @@ export default function Home() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                onClick={generateReportForCurrentForm}
-                disabled={reportGenerating}
-                className="min-w-[170px] whitespace-nowrap rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-5 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {reportGenerating ? "Generating..." : "Generate report"}
-              </button>
-
-              <button
-                onClick={downloadMarkdownReport}
-                disabled={!report}
-                className="min-w-[180px] whitespace-nowrap rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-5 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Download Markdown
-              </button>
-
-              <button
-                onClick={downloadPdfReportForCurrentForm}
-                disabled={reportGenerating}
-                className="min-w-[150px] whitespace-nowrap rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Download PDF
-              </button>
+              <ActionButton label={reportGenerating ? "Generating..." : "Generate report"} onClick={generateReportForCurrentForm} disabled={reportGenerating} variant="green" />
+              <ActionButton label="Download Markdown" onClick={downloadMarkdownReport} disabled={!report} variant="green" />
+              <ActionButton label="Download PDF" onClick={downloadPdfReportForCurrentForm} disabled={reportGenerating} variant="white" />
             </div>
           </div>
 
@@ -779,22 +819,10 @@ export default function Home() {
                 </p>
 
                 <div className="mt-5 grid gap-3">
-                  <MiniInfo
-                    label="Risk score"
-                    value={`${report.risk_assessment.risk_score}/100`}
-                  />
-                  <MiniInfo
-                    label="Risk level"
-                    value={report.risk_assessment.risk_level}
-                  />
-                  <MiniInfo
-                    label="Prompt tests failed"
-                    value={String(report.prompt_injection_tests.failed_tests)}
-                  />
-                  <MiniInfo
-                    label="Generated at"
-                    value={new Date(report.generated_at).toLocaleString()}
-                  />
+                  <MiniInfo label="Risk score" value={`${report.risk_assessment.risk_score}/100`} />
+                  <MiniInfo label="Risk level" value={report.risk_assessment.risk_level} />
+                  <MiniInfo label="Prompt tests failed" value={String(report.prompt_injection_tests.failed_tests)} />
+                  <MiniInfo label="Generated at" value={new Date(report.generated_at).toLocaleString()} />
                 </div>
               </div>
 
@@ -825,13 +853,7 @@ export default function Home() {
               </p>
             </div>
 
-            <button
-              onClick={runPromptTestsForCurrentForm}
-              disabled={promptTesting}
-              className="min-w-[190px] whitespace-nowrap rounded-xl border border-purple-400/40 bg-purple-400/10 px-5 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {promptTesting ? "Running tests..." : "Test current agent"}
-            </button>
+            <ActionButton label={promptTesting ? "Running tests..." : "Test current agent"} onClick={runPromptTestsForCurrentForm} disabled={promptTesting} variant="purple" />
           </div>
 
           {!promptResult && (
@@ -857,10 +879,7 @@ export default function Home() {
 
               <div className="grid gap-4">
                 {promptResult.findings.map((finding) => (
-                  <PromptFindingCard
-                    key={finding.scenario_id}
-                    finding={finding}
-                  />
+                  <PromptFindingCard key={finding.scenario_id} finding={finding} />
                 ))}
               </div>
             </div>
@@ -877,13 +896,7 @@ export default function Home() {
               </p>
             </div>
 
-            <button
-              onClick={loadAgents}
-              disabled={inventoryLoading}
-              className="min-w-[140px] whitespace-nowrap rounded-xl border border-white/10 bg-slate-900 px-5 py-3 font-semibold text-slate-100 transition hover:border-cyan-400/50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {inventoryLoading ? "Refreshing..." : "Refresh"}
-            </button>
+            <ActionButton label={inventoryLoading ? "Refreshing..." : "Refresh"} onClick={loadAgents} disabled={inventoryLoading} />
           </div>
 
           <div className="mt-6">
@@ -909,8 +922,92 @@ export default function Home() {
             )}
           </div>
         </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold">Audit logs</h2>
+              <p className="mt-2 text-slate-400">
+                Admin-only traceability of security-sensitive actions executed through the API.
+              </p>
+            </div>
+
+            <ActionButton label={auditLoading ? "Loading..." : "Refresh logs"} onClick={loadAuditLogs} disabled={auditLoading} />
+          </div>
+
+          <div className="mt-6">
+            {auditLogs.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
+                No audit logs available, or the current API key does not have admin permissions.
+              </div>
+            )}
+
+            {auditLogs.length > 0 && (
+              <div className="overflow-hidden rounded-2xl border border-white/10">
+                <div className="grid grid-cols-[180px_120px_1fr_120px] bg-slate-900 px-4 py-3 text-xs uppercase tracking-wide text-slate-400">
+                  <span>Actor</span>
+                  <span>Role</span>
+                  <span>Action</span>
+                  <span>Status</span>
+                </div>
+
+                <div className="divide-y divide-white/10">
+                  {auditLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="grid grid-cols-[180px_120px_1fr_120px] px-4 py-4 text-sm text-slate-300"
+                    >
+                      <span>{log.actor}</span>
+                      <span className="capitalize">{log.role}</span>
+                      <span>
+                        <span className="font-medium text-slate-100">{log.action}</span>
+                        <span className="ml-2 text-xs text-slate-500">
+                          {new Date(log.created_at).toLocaleString()}
+                        </span>
+                      </span>
+                      <span className="capitalize">{log.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       </section>
     </main>
+  );
+}
+
+function ActionButton({
+  label,
+  onClick,
+  disabled,
+  variant = "default",
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "default" | "purple" | "green" | "white" | "solid";
+}) {
+  const classNameByVariant = {
+    default:
+      "border border-cyan-400/40 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/20",
+    purple:
+      "border border-purple-400/40 bg-purple-400/10 text-purple-100 hover:bg-purple-400/20",
+    green:
+      "border border-emerald-400/40 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20",
+    white: "bg-white text-slate-950 hover:bg-slate-200",
+    solid: "bg-cyan-400 text-slate-950 hover:bg-cyan-300",
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`min-w-[130px] whitespace-nowrap rounded-xl px-5 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${classNameByVariant[variant]}`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -923,13 +1020,7 @@ function KpiCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
       <span className="text-sm font-medium text-slate-300">{label}</span>
@@ -1007,9 +1098,7 @@ function AgentCard({
         )}
       </div>
 
-      <p className="mt-4 text-sm leading-6 text-slate-300">
-        {agent.purpose}
-      </p>
+      <p className="mt-4 text-sm leading-6 text-slate-300">{agent.purpose}</p>
 
       <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <MiniInfo label="Sensitivity" value={agent.data_sensitivity} />
@@ -1034,31 +1123,16 @@ function AgentCard({
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-4">
-        <button
-          onClick={onLoad}
-          className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-slate-100 transition hover:border-cyan-400/50 hover:bg-cyan-400/10"
-        >
+        <button onClick={onLoad} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-slate-100 transition hover:border-cyan-400/50 hover:bg-cyan-400/10">
           Load
         </button>
-
-        <button
-          onClick={onRunTests}
-          className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-4 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20"
-        >
+        <button onClick={onRunTests} className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-4 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20">
           Tests
         </button>
-
-        <button
-          onClick={onGenerateReport}
-          className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
-        >
+        <button onClick={onGenerateReport} className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20">
           Report
         </button>
-
-        <button
-          onClick={onDownloadPdf}
-          className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 font-semibold text-white transition hover:bg-white/20"
-        >
+        <button onClick={onDownloadPdf} className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 font-semibold text-white transition hover:bg-white/20">
           PDF
         </button>
       </div>
