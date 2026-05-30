@@ -222,3 +222,109 @@ The v0.6.x branch introduces enterprise-oriented controls:
 - traceability of PDF exports.
 
 These controls are designed to demonstrate how AI governance workflows can be secured and audited in an enterprise information system.
+
+## Docker Quick Start
+
+AI Governance Sentinel can be started locally with Docker Compose.
+
+### Requirements
+
+- Docker Desktop
+- Docker Compose
+- Git
+
+### Start the full platform
+
+```bash
+git clone https://github.com/DiabiWali/ai-governance-sentinel.git
+cd ai-governance-sentinel
+docker compose up --build
+```
+
+The platform will start:
+
+- Frontend: http://localhost:3000
+- API: http://localhost:8000
+- API docs: http://localhost:8000/docs
+- PostgreSQL: localhost:5432
+
+### Docker services
+
+| Service | Description | Port |
+|---|---|---|
+| web | Next.js frontend | 3000 |
+| api | FastAPI backend | 8000 |
+| postgres | PostgreSQL database | 5432 |
+
+### Health checks
+
+```bash
+curl http://localhost:8000/live
+curl http://localhost:8000/ready
+```
+
+### Authenticated API example
+
+```bash
+curl -H "X-API-Key: dev-admin-key" http://localhost:8000/auth/me
+```
+
+### Metrics endpoint
+
+```bash
+curl -H "X-API-Key: dev-admin-key" http://localhost:8000/metrics
+```
+
+### Stop the platform
+
+```bash
+docker compose down
+```
+
+### Stop and remove local database volume
+
+```bash
+docker compose down -v
+```
+
+## Docker Environment
+
+The Docker Compose stack uses local development values by default:
+
+```txt
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ai_governance_sentinel
+API_KEY=dev-analyst-key
+ADMIN_API_KEY=dev-admin-key
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_DEMO_API_KEY=dev-admin-key
+```
+
+These values are intended for local development only and must be changed for production.
+
+## Production Readiness Notes
+
+The v0.9.x branch introduces a containerized runtime for easier local testing and deployment preparation.
+
+Current production-readiness capabilities include:
+
+- Dockerized FastAPI backend
+- Dockerized Next.js frontend
+- PostgreSQL service with persistent volume
+- Docker health checks
+- API liveness endpoint
+- API readiness endpoint
+- Metrics endpoint
+- Environment-based configuration
+- Isolated Docker build contexts
+- Local development secrets excluded from Docker images
+
+Before real production deployment, the following should still be added:
+
+- real identity provider integration
+- secret manager integration
+- HTTPS / reverse proxy configuration
+- production-grade database credentials
+- CI/CD pipeline
+- container image scanning
+- centralized logs and metrics backend
+- deployment manifests for Kubernetes or a cloud platform
