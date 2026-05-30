@@ -1,9 +1,12 @@
 ﻿from contextlib import asynccontextmanager
+from time import perf_counter
+from uuid import uuid4
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.audit import to_audit_log_read, write_audit_log
@@ -28,6 +31,7 @@ from app.prompt_tests import (
     get_prompt_injection_scenarios,
     run_prompt_injection_tests,
 )
+from app.observability import metrics_registry
 from app.reporting import generate_risk_report
 from app.reporting_pdf import build_pdf_filename, build_pdf_report
 from app.risk_engine import calculate_risk_score
@@ -43,7 +47,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Governance Sentinel API",
     description="API for AI agent inventory, risk scoring, prompt injection testing, reporting and enterprise security.",
-    version="0.7.0",
+    version="0.8.0",
     lifespan=lifespan,
 )
 
@@ -134,7 +138,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "ai-governance-sentinel-api",
-        "version": "0.7.0",
+        "version": "0.8.0",
     }
 
 
@@ -722,3 +726,123 @@ def delete_agent(
     )
 
 
+
+
+
+@app.middleware("http")
+async def observability_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    start_time = perf_counter()
+    status_code = 500
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        response.headers["X-Request-ID"] = request_id
+        return response
+    except Exception:
+        status_code = 500
+        raise
+    finally:
+        duration_ms = (perf_counter() - start_time) * 1000
+
+        metrics_registry.record_request(
+            method=request.method,
+            path=request.url.path,
+            status_code=status_code,
+            duration_ms=duration_ms,
+        )
+
+
+@app.get("/live")
+def liveness_check():
+    return {
+        "status": "live",
+        "service": "ai-governance-sentinel-api",
+        "version": "0.8.0",
+    }
+
+
+@app.get("/ready")
+def readiness_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+
+        return {
+            "status": "ready",
+            "service": "ai-governance-sentinel-api",
+            "database": "ok",
+            "version": "0.8.0",
+        }
+    except Exception as error:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "not_ready",
+                "service": "ai-governance-sentinel-api",
+                "database": "error",
+                "detail": str(error),
+                "version": "0.8.0",
+            },
+        )
+
+
+@app.get("/metrics")
+def get_metrics(
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_admin),
+):
+    runtime_metrics = metrics_registry.snapshot()
+
+    report_actions = [
+        "reports.generate",
+        "reports.generate_markdown",
+        "reports.generate_pdf",
+        "agents.report.generate",
+        "agents.report.generate_markdown",
+        "agents.report.generate_pdf",
+    ]
+
+    prompt_test_actions = [
+        "prompt_tests.run",
+        "agents.prompt_tests.run",
+    ]
+
+    database_metrics = {
+        "agents_count": db.query(Agent).count(),
+        "risk_assessments_count": db.query(RiskAssessment).count(),
+        "audit_logs_count": db.query(AuditLog).count(),
+    }
+
+    governance_metrics = {
+        "report_events_count": db.query(AuditLog)
+        .filter(AuditLog.action.in_(report_actions))
+        .count(),
+        "prompt_test_events_count": db.query(AuditLog)
+        .filter(AuditLog.action.in_(prompt_test_actions))
+        .count(),
+        "risk_assessment_events_count": db.query(AuditLog)
+        .filter(AuditLog.action == "risk.assess")
+        .count(),
+        "agent_create_events_count": db.query(AuditLog)
+        .filter(AuditLog.action == "agents.create")
+        .count(),
+        "agent_update_events_count": db.query(AuditLog)
+        .filter(AuditLog.action == "agents.update")
+        .count(),
+        "agent_delete_events_count": db.query(AuditLog)
+        .filter(AuditLog.action == "agents.delete")
+        .count(),
+    }
+
+    return {
+        "service": "ai-governance-sentinel-api",
+        "version": "0.8.0",
+        "requested_by": {
+            "actor": principal.actor,
+            "role": principal.role,
+        },
+        "runtime": runtime_metrics,
+        "database": database_metrics,
+        "governance": governance_metrics,
+    }
