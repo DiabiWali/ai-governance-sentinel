@@ -143,3 +143,18 @@ http://localhost:8000/docs
 ## Author
 
 Built by Wali Diabi as a practical AI, cloud, cybersecurity and enterprise architecture project.
+
+## Demo Scenarios
+
+The project includes realistic enterprise AI governance scenarios:
+
+- Low-risk public FAQ assistant
+- Critical-risk HR assistant
+- High-risk finance analysis agent
+- Medium-risk public support agent
+
+See [Demo Scenarios](docs/demo-scenarios.md).
+
+## Roadmap
+
+See [Roadmap](ROADMAP.md).
