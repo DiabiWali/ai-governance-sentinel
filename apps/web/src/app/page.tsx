@@ -166,8 +166,14 @@ export default function Home() {
   const [principal, setPrincipal] = useState<SecurityPrincipal | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogRead[]>([]);
 
+  const [editingAgentId, setEditingAgentId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [riskFilter, setRiskFilter] = useState("all");
+  const [sortMode, setSortMode] = useState("updated_desc");
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingAgentId, setDeletingAgentId] = useState<number | null>(null);
   const [promptTesting, setPromptTesting] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
   const [inventoryLoading, setInventoryLoading] = useState(false);
@@ -191,6 +197,41 @@ export default function Home() {
     return agents.filter((agent) => agent.latest_assessment?.risk_level === "critical")
       .length;
   }, [agents]);
+
+  const filteredAgents = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    const filtered = agents.filter((agent) => {
+      const riskLevel = agent.latest_assessment?.risk_level || "no_assessment";
+
+      const matchesSearch =
+        !query ||
+        agent.name.toLowerCase().includes(query) ||
+        agent.purpose.toLowerCase().includes(query) ||
+        agent.model_provider.toLowerCase().includes(query) ||
+        agent.connectors.join(" ").toLowerCase().includes(query);
+
+      const matchesRisk = riskFilter === "all" || riskLevel === riskFilter;
+
+      return matchesSearch && matchesRisk;
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (sortMode === "name_asc") {
+        return a.name.localeCompare(b.name);
+      }
+
+      if (sortMode === "risk_desc") {
+        return riskWeight(b.latest_assessment?.risk_level) - riskWeight(a.latest_assessment?.risk_level);
+      }
+
+      if (sortMode === "risk_asc") {
+        return riskWeight(a.latest_assessment?.risk_level) - riskWeight(b.latest_assessment?.risk_level);
+      }
+
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+  }, [agents, riskFilter, searchQuery, sortMode]);
 
   function updateField<K extends keyof AgentAssessmentForm>(
     key: K,
@@ -458,12 +499,16 @@ export default function Home() {
     }
   }
 
-  async function saveAgent() {
+  async function saveOrUpdateAgent() {
     setSaving(true);
 
+    const isEditing = editingAgentId !== null;
+    const url = isEditing ? `${API_URL}/agents/${editingAgentId}` : `${API_URL}/agents`;
+    const method = isEditing ? "PUT" : "POST";
+
     try {
-      const response = await fetch(`${API_URL}/agents`, {
-        method: "POST",
+      const response = await fetch(url, {
+        method,
         headers: jsonAuthHeaders(),
         body: JSON.stringify(form),
       });
@@ -474,10 +519,19 @@ export default function Home() {
 
       const savedAgent: AgentRead = await response.json();
 
-      setAgents((current) => [
-        savedAgent,
-        ...current.filter((agent) => agent.id !== savedAgent.id),
-      ]);
+      setAgents((current) => {
+        const exists = current.some((agent) => agent.id === savedAgent.id);
+
+        if (exists) {
+          return current.map((agent) =>
+            agent.id === savedAgent.id ? savedAgent : agent
+          );
+        }
+
+        return [savedAgent, ...current];
+      });
+
+      setEditingAgentId(savedAgent.id);
 
       if (savedAgent.latest_assessment) {
         setResult({
@@ -494,6 +548,42 @@ export default function Home() {
       alert("Unable to save agent. Check PostgreSQL, FastAPI and the API key.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteAgent(agent: AgentRead) {
+    const confirmed = window.confirm(
+      `Delete "${agent.name}" from the persistent inventory? This action cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingAgentId(agent.id);
+
+    try {
+      const response = await fetch(`${API_URL}/agents/${agent.id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to delete agent");
+      }
+
+      setAgents((current) => current.filter((item) => item.id !== agent.id));
+
+      if (editingAgentId === agent.id) {
+        resetForm();
+      }
+
+      loadAuditLogs();
+    } catch (error) {
+      console.error(error);
+      alert("Unable to delete agent. This action requires an admin API key.");
+    } finally {
+      setDeletingAgentId(null);
     }
   }
 
@@ -530,6 +620,8 @@ export default function Home() {
   }
 
   function loadAgentIntoForm(agent: AgentRead) {
+    setEditingAgentId(agent.id);
+
     setForm({
       name: agent.name,
       purpose: agent.purpose,
@@ -552,6 +644,15 @@ export default function Home() {
       });
     }
 
+    setPromptResult(null);
+    setReport(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function resetForm() {
+    setEditingAgentId(null);
+    setForm(INITIAL_FORM);
+    setResult(null);
     setPromptResult(null);
     setReport(null);
   }
@@ -591,19 +692,8 @@ export default function Home() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                onClick={loadCurrentPrincipal}
-                className="rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-400/20"
-              >
-                Refresh identity
-              </button>
-
-              <button
-                onClick={loadAuditLogs}
-                className="rounded-xl border border-white/10 bg-slate-900 px-5 py-3 font-semibold text-slate-100 transition hover:border-cyan-400/50"
-              >
-                Refresh audit logs
-              </button>
+              <ActionButton label="Refresh identity" onClick={loadCurrentPrincipal} />
+              <ActionButton label="Refresh audit logs" onClick={loadAuditLogs} />
             </div>
           </div>
         </section>
@@ -611,7 +701,7 @@ export default function Home() {
         <section className="grid gap-5 md:grid-cols-4">
           <KpiCard label="Saved agents" value={String(agents.length)} />
           <KpiCard label="Critical agents" value={String(criticalAgents)} />
-          <KpiCard label="Sensitive connectors" value={String(sensitiveConnectorCount)} />
+          <KpiCard label="Visible agents" value={String(filteredAgents.length)} />
           <KpiCard label="Audit events" value={String(auditLogs.length)} />
         </section>
 
@@ -619,19 +709,22 @@ export default function Home() {
           <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
-                <h2 className="text-2xl font-semibold">AI agent assessment</h2>
+                <h2 className="text-2xl font-semibold">
+                  {editingAgentId ? `Edit agent #${editingAgentId}` : "AI agent assessment"}
+                </h2>
                 <p className="mt-2 max-w-2xl text-slate-400">
-                  Describe an AI agent, assess its risk, run security tests and generate
-                  an exportable governance report.
+                  Create or update an AI agent, assess its risk, run security tests and
+                  generate an exportable governance report.
                 </p>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <ActionButton label="New agent" onClick={resetForm} />
                 <ActionButton label={loading ? "Assessing..." : "Assess"} onClick={runAssessment} disabled={loading || saving || promptTesting || reportGenerating} />
                 <ActionButton label={promptTesting ? "Testing..." : "Security tests"} onClick={runPromptTestsForCurrentForm} disabled={loading || saving || promptTesting || reportGenerating} variant="purple" />
                 <ActionButton label={reportGenerating ? "Generating..." : "Generate report"} onClick={generateReportForCurrentForm} disabled={loading || saving || promptTesting || reportGenerating} variant="green" />
                 <ActionButton label="PDF" onClick={downloadPdfReportForCurrentForm} disabled={loading || saving || promptTesting || reportGenerating} variant="white" />
-                <ActionButton label={saving ? "Saving..." : "Save"} onClick={saveAgent} disabled={loading || saving || promptTesting || reportGenerating} variant="solid" />
+                <ActionButton label={saving ? "Saving..." : editingAgentId ? "Update" : "Save"} onClick={saveOrUpdateAgent} disabled={loading || saving || promptTesting || reportGenerating} variant="solid" />
               </div>
             </div>
 
@@ -787,20 +880,12 @@ export default function Home() {
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">Risk report export</h2>
-              <p className="mt-2 text-slate-400">
-                Generate an executive and technical report combining the agent profile,
-                risk score, prompt injection findings and remediation plan.
-              </p>
-            </div>
+          <h2 className="text-2xl font-semibold">Risk report export</h2>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <ActionButton label={reportGenerating ? "Generating..." : "Generate report"} onClick={generateReportForCurrentForm} disabled={reportGenerating} variant="green" />
-              <ActionButton label="Download Markdown" onClick={downloadMarkdownReport} disabled={!report} variant="green" />
-              <ActionButton label="Download PDF" onClick={downloadPdfReportForCurrentForm} disabled={reportGenerating} variant="white" />
-            </div>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <ActionButton label={reportGenerating ? "Generating..." : "Generate report"} onClick={generateReportForCurrentForm} disabled={reportGenerating} variant="green" />
+            <ActionButton label="Download Markdown" onClick={downloadMarkdownReport} disabled={!report} variant="green" />
+            <ActionButton label="Download PDF" onClick={downloadPdfReportForCurrentForm} disabled={reportGenerating} variant="white" />
           </div>
 
           {!report && (
@@ -817,42 +902,19 @@ export default function Home() {
                 <p className="mt-3 text-sm leading-6 text-slate-300">
                   {report.executive_summary}
                 </p>
-
-                <div className="mt-5 grid gap-3">
-                  <MiniInfo label="Risk score" value={`${report.risk_assessment.risk_score}/100`} />
-                  <MiniInfo label="Risk level" value={report.risk_assessment.risk_level} />
-                  <MiniInfo label="Prompt tests failed" value={String(report.prompt_injection_tests.failed_tests)} />
-                  <MiniInfo label="Generated at" value={new Date(report.generated_at).toLocaleString()} />
-                </div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-5">
-                <div className="flex items-center justify-between gap-4">
-                  <h3 className="text-lg font-semibold">Markdown preview</h3>
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
-                    .md preview
-                  </span>
-                </div>
-
-                <pre className="mt-4 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-slate-300">
-                  {report.markdown_report}
-                </pre>
-              </div>
+              <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-slate-300">
+                {report.markdown_report}
+              </pre>
             </div>
           )}
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">Prompt injection test suite</h2>
-              <p className="mt-2 text-slate-400">
-                Simulated security tests evaluate whether the agent configuration is
-                exposed to prompt injection, data exfiltration, connector abuse or
-                approval bypass risks.
-              </p>
-            </div>
+          <h2 className="text-2xl font-semibold">Prompt injection test suite</h2>
 
+          <div className="mt-4">
             <ActionButton label={promptTesting ? "Running tests..." : "Test current agent"} onClick={runPromptTestsForCurrentForm} disabled={promptTesting} variant="purple" />
           </div>
 
@@ -891,28 +953,63 @@ export default function Home() {
             <div>
               <h2 className="text-2xl font-semibold">Persistent agent inventory</h2>
               <p className="mt-2 text-slate-400">
-                Agents saved through the API are stored in PostgreSQL and loaded from
-                <span className="font-mono text-cyan-200"> /agents</span>.
+                Search, filter, edit and delete saved AI agents.
               </p>
             </div>
 
             <ActionButton label={inventoryLoading ? "Refreshing..." : "Refresh"} onClick={loadAgents} disabled={inventoryLoading} />
           </div>
 
+          <div className="mt-6 grid gap-4 md:grid-cols-[1fr_180px_180px]">
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+              placeholder="Search by name, purpose, provider or connector..."
+            />
+
+            <select
+              value={riskFilter}
+              onChange={(event) => setRiskFilter(event.target.value)}
+              className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+            >
+              <option value="all">All risks</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="no_assessment">No assessment</option>
+            </select>
+
+            <select
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value)}
+              className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+            >
+              <option value="updated_desc">Recently updated</option>
+              <option value="risk_desc">Highest risk</option>
+              <option value="risk_asc">Lowest risk</option>
+              <option value="name_asc">Name A-Z</option>
+            </select>
+          </div>
+
           <div className="mt-6">
-            {agents.length === 0 && (
+            {filteredAgents.length === 0 && (
               <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
-                No saved agents yet. Fill the assessment form and click Save.
+                No agents match the current filters.
               </div>
             )}
 
-            {agents.length > 0 && (
+            {filteredAgents.length > 0 && (
               <div className="grid gap-4 lg:grid-cols-2">
-                {agents.map((agent) => (
+                {filteredAgents.map((agent) => (
                   <AgentCard
                     key={agent.id}
                     agent={agent}
-                    onLoad={() => loadAgentIntoForm(agent)}
+                    isEditing={editingAgentId === agent.id}
+                    isDeleting={deletingAgentId === agent.id}
+                    onEdit={() => loadAgentIntoForm(agent)}
+                    onDelete={() => deleteAgent(agent)}
                     onRunTests={() => runPromptTestsForSavedAgent(agent.id)}
                     onGenerateReport={() => generateReportForSavedAgent(agent.id)}
                     onDownloadPdf={() => downloadPdfReportForSavedAgent(agent.id, agent.name)}
@@ -924,54 +1021,46 @@ export default function Home() {
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">Audit logs</h2>
-              <p className="mt-2 text-slate-400">
-                Admin-only traceability of security-sensitive actions executed through the API.
-              </p>
-            </div>
-
+          <h2 className="text-2xl font-semibold">Audit logs</h2>
+          <div className="mt-4">
             <ActionButton label={auditLoading ? "Loading..." : "Refresh logs"} onClick={loadAuditLogs} disabled={auditLoading} />
           </div>
 
-          <div className="mt-6">
-            {auditLogs.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
-                No audit logs available, or the current API key does not have admin permissions.
+          {auditLogs.length === 0 && (
+            <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
+              No audit logs available, or the current API key does not have admin permissions.
+            </div>
+          )}
+
+          {auditLogs.length > 0 && (
+            <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
+              <div className="grid grid-cols-[180px_120px_1fr_120px] bg-slate-900 px-4 py-3 text-xs uppercase tracking-wide text-slate-400">
+                <span>Actor</span>
+                <span>Role</span>
+                <span>Action</span>
+                <span>Status</span>
               </div>
-            )}
 
-            {auditLogs.length > 0 && (
-              <div className="overflow-hidden rounded-2xl border border-white/10">
-                <div className="grid grid-cols-[180px_120px_1fr_120px] bg-slate-900 px-4 py-3 text-xs uppercase tracking-wide text-slate-400">
-                  <span>Actor</span>
-                  <span>Role</span>
-                  <span>Action</span>
-                  <span>Status</span>
-                </div>
-
-                <div className="divide-y divide-white/10">
-                  {auditLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="grid grid-cols-[180px_120px_1fr_120px] px-4 py-4 text-sm text-slate-300"
-                    >
-                      <span>{log.actor}</span>
-                      <span className="capitalize">{log.role}</span>
-                      <span>
-                        <span className="font-medium text-slate-100">{log.action}</span>
-                        <span className="ml-2 text-xs text-slate-500">
-                          {new Date(log.created_at).toLocaleString()}
-                        </span>
+              <div className="divide-y divide-white/10">
+                {auditLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="grid grid-cols-[180px_120px_1fr_120px] px-4 py-4 text-sm text-slate-300"
+                  >
+                    <span>{log.actor}</span>
+                    <span className="capitalize">{log.role}</span>
+                    <span>
+                      <span className="font-medium text-slate-100">{log.action}</span>
+                      <span className="ml-2 text-xs text-slate-500">
+                        {new Date(log.created_at).toLocaleString()}
                       </span>
-                      <span className="capitalize">{log.status}</span>
-                    </div>
-                  ))}
-                </div>
+                    </span>
+                    <span className="capitalize">{log.status}</span>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </section>
       </section>
     </main>
@@ -987,7 +1076,7 @@ function ActionButton({
   label: string;
   onClick: () => void;
   disabled?: boolean;
-  variant?: "default" | "purple" | "green" | "white" | "solid";
+  variant?: "default" | "purple" | "green" | "white" | "solid" | "danger";
 }) {
   const classNameByVariant = {
     default:
@@ -998,13 +1087,15 @@ function ActionButton({
       "border border-emerald-400/40 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/20",
     white: "bg-white text-slate-950 hover:bg-slate-200",
     solid: "bg-cyan-400 text-slate-950 hover:bg-cyan-300",
+    danger:
+      "border border-red-400/40 bg-red-400/10 text-red-100 hover:bg-red-400/20",
   };
 
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`min-w-[130px] whitespace-nowrap rounded-xl px-5 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${classNameByVariant[variant]}`}
+      className={`min-w-[110px] whitespace-nowrap rounded-xl px-5 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${classNameByVariant[variant]}`}
     >
       {label}
     </button>
@@ -1066,13 +1157,19 @@ function Toggle({
 
 function AgentCard({
   agent,
-  onLoad,
+  isEditing,
+  isDeleting,
+  onEdit,
+  onDelete,
   onRunTests,
   onGenerateReport,
   onDownloadPdf,
 }: {
   agent: AgentRead;
-  onLoad: () => void;
+  isEditing: boolean;
+  isDeleting: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
   onRunTests: () => void;
   onGenerateReport: () => void;
   onDownloadPdf: () => void;
@@ -1080,7 +1177,7 @@ function AgentCard({
   const assessment = agent.latest_assessment;
 
   return (
-    <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+    <article className={`rounded-2xl border p-5 ${isEditing ? "border-cyan-400/50 bg-cyan-400/10" : "border-white/10 bg-slate-900/70"}`}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-lg font-semibold">{agent.name}</h3>
@@ -1122,9 +1219,9 @@ function AgentCard({
         ))}
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-4">
-        <button onClick={onLoad} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-slate-100 transition hover:border-cyan-400/50 hover:bg-cyan-400/10">
-          Load
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <button onClick={onEdit} className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-400/20">
+          Edit
         </button>
         <button onClick={onRunTests} className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-4 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20">
           Tests
@@ -1134,6 +1231,13 @@ function AgentCard({
         </button>
         <button onClick={onDownloadPdf} className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 font-semibold text-white transition hover:bg-white/20">
           PDF
+        </button>
+        <button
+          onClick={onDelete}
+          disabled={isDeleting}
+          className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 font-semibold text-red-100 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
+        >
+          {isDeleting ? "Deleting..." : "Delete"}
         </button>
       </div>
     </article>
@@ -1225,6 +1329,21 @@ function MiniInfo({ label, value }: { label: string; value: string }) {
       </p>
     </div>
   );
+}
+
+function riskWeight(level?: string) {
+  switch (level) {
+    case "critical":
+      return 4;
+    case "high":
+      return 3;
+    case "medium":
+      return 2;
+    case "low":
+      return 1;
+    default:
+      return 0;
+  }
 }
 
 function riskTone(level: string) {
