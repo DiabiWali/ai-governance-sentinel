@@ -329,6 +329,52 @@ export default function Home() {
     }
   }
 
+  async function downloadPdfReportForCurrentForm() {
+    setReportGenerating(true);
+
+    try {
+      const response = await fetch(`${API_URL}/reports/generate/pdf`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to generate PDF report");
+      }
+
+      const blob = await response.blob();
+      downloadBlob(blob, `ai-risk-report-${safeFileName(form.name)}.pdf`);
+    } catch (error) {
+      console.error(error);
+      alert("Unable to generate PDF report. Make sure FastAPI is running.");
+    } finally {
+      setReportGenerating(false);
+    }
+  }
+
+  async function downloadPdfReportForSavedAgent(agentId: number, agentName: string) {
+    setReportGenerating(true);
+
+    try {
+      const response = await fetch(`${API_URL}/agents/${agentId}/report/pdf`);
+
+      if (!response.ok) {
+        throw new Error("Unable to generate saved agent PDF report");
+      }
+
+      const blob = await response.blob();
+      downloadBlob(blob, `ai-risk-report-${safeFileName(agentName)}.pdf`);
+    } catch (error) {
+      console.error(error);
+      alert("Unable to generate PDF report for this saved agent.");
+    } finally {
+      setReportGenerating(false);
+    }
+  }
+
   async function saveAgent() {
     setSaving(true);
 
@@ -373,23 +419,31 @@ export default function Home() {
       return;
     }
 
-    const safeName = report.agent_name
-      .toLowerCase()
-      .replaceAll(" ", "-")
-      .replace(/[^a-z0-9-_]/g, "");
-
     const blob = new Blob([report.markdown_report], {
       type: "text/markdown;charset=utf-8",
     });
 
+    downloadBlob(blob, `ai-risk-report-${safeFileName(report.agent_name)}.md`);
+  }
+
+  function downloadBlob(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
 
     link.href = url;
-    link.download = `ai-risk-report-${safeName || "agent"}.md`;
+    link.download = filename;
     link.click();
 
     URL.revokeObjectURL(url);
+  }
+
+  function safeFileName(value: string) {
+    return (
+      value
+        .toLowerCase()
+        .replaceAll(" ", "-")
+        .replace(/[^a-z0-9-_]/g, "") || "agent"
+    );
   }
 
   function loadAgentIntoForm(agent: AgentRead) {
@@ -482,6 +536,14 @@ export default function Home() {
                   className="min-w-[160px] whitespace-nowrap rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-5 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {reportGenerating ? "Generating..." : "Generate report"}
+                </button>
+
+                <button
+                  onClick={downloadPdfReportForCurrentForm}
+                  disabled={loading || saving || promptTesting || reportGenerating}
+                  className="min-w-[150px] whitespace-nowrap rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  PDF
                 </button>
 
                 <button
@@ -686,9 +748,17 @@ export default function Home() {
               <button
                 onClick={downloadMarkdownReport}
                 disabled={!report}
-                className="min-w-[180px] whitespace-nowrap rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-w-[180px] whitespace-nowrap rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-5 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Download Markdown
+              </button>
+
+              <button
+                onClick={downloadPdfReportForCurrentForm}
+                disabled={reportGenerating}
+                className="min-w-[150px] whitespace-nowrap rounded-xl bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Download PDF
               </button>
             </div>
           </div>
@@ -732,7 +802,7 @@ export default function Home() {
                 <div className="flex items-center justify-between gap-4">
                   <h3 className="text-lg font-semibold">Markdown preview</h3>
                   <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
-                    .md export
+                    .md preview
                   </span>
                 </div>
 
@@ -832,6 +902,7 @@ export default function Home() {
                     onLoad={() => loadAgentIntoForm(agent)}
                     onRunTests={() => runPromptTestsForSavedAgent(agent.id)}
                     onGenerateReport={() => generateReportForSavedAgent(agent.id)}
+                    onDownloadPdf={() => downloadPdfReportForSavedAgent(agent.id, agent.name)}
                   />
                 ))}
               </div>
@@ -907,11 +978,13 @@ function AgentCard({
   onLoad,
   onRunTests,
   onGenerateReport,
+  onDownloadPdf,
 }: {
   agent: AgentRead;
   onLoad: () => void;
   onRunTests: () => void;
   onGenerateReport: () => void;
+  onDownloadPdf: () => void;
 }) {
   const assessment = agent.latest_assessment;
 
@@ -960,7 +1033,7 @@ function AgentCard({
         ))}
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-4">
         <button
           onClick={onLoad}
           className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-slate-100 transition hover:border-cyan-400/50 hover:bg-cyan-400/10"
@@ -980,6 +1053,13 @@ function AgentCard({
           className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
         >
           Report
+        </button>
+
+        <button
+          onClick={onDownloadPdf}
+          className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 font-semibold text-white transition hover:bg-white/20"
+        >
+          PDF
         </button>
       </div>
     </article>
