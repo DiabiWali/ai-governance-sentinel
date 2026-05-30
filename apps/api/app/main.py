@@ -1,4 +1,4 @@
-﻿from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager
 from time import perf_counter
 from uuid import uuid4
 from typing import List
@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.audit import to_audit_log_read, write_audit_log
+from app.compliance import generate_compliance_mapping
 from app.database import Base, engine, get_db
 from app.db_models import Agent, AuditLog, RiskAssessment
 from app.models import (
@@ -19,6 +20,7 @@ from app.models import (
     AgentUpdate,
     AgentRead,
     AuditLogRead,
+    ComplianceMappingResponse,
     DeleteResponse,
     PromptInjectionScenario,
     PromptInjectionTestResponse,
@@ -846,3 +848,71 @@ def get_metrics(
         "database": database_metrics,
         "governance": governance_metrics,
     }
+
+@app.post("/compliance/map", response_model=ComplianceMappingResponse)
+def map_compliance(
+    payload: AgentAssessmentRequest,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    mapping = generate_compliance_mapping(payload)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="compliance.map",
+        resource_type="agent_profile",
+        status="success",
+        details={
+            "agent_name": payload.name,
+            "overall_score": mapping.overall_score,
+            "overall_posture": mapping.overall_posture,
+        },
+    )
+
+    return mapping
+
+
+@app.get("/agents/{agent_id}/compliance", response_model=ComplianceMappingResponse)
+def map_compliance_for_saved_agent(
+    agent_id: int,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    agent = (
+        db.query(Agent)
+        .filter(Agent.id == agent_id)
+        .first()
+    )
+
+    if agent is None:
+        write_audit_log(
+            db=db,
+            principal=principal,
+            action="agents.compliance.map",
+            resource_type="agent",
+            resource_id=str(agent_id),
+            status="not_found",
+        )
+
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    payload = agent_to_assessment_request(agent)
+    mapping = generate_compliance_mapping(payload)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="agents.compliance.map",
+        resource_type="agent",
+        resource_id=str(agent_id),
+        status="success",
+        details={
+            "agent_name": agent.name,
+            "overall_score": mapping.overall_score,
+            "overall_posture": mapping.overall_posture,
+        },
+    )
+
+    return mapping
+

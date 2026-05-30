@@ -1,6 +1,10 @@
+﻿"use client";
+
 import type { PromptInjectionFinding, PromptInjectionTestResponse } from "@/types";
 import { riskTone } from "@/lib/risk";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { useI18n } from "@/i18n/I18nProvider";
+import { formatSeverity } from "@/lib/labels";
 
 export function PromptTestPanel({
   result,
@@ -11,6 +15,8 @@ export function PromptTestPanel({
   loading: boolean;
   onRunCurrent: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <section
       id="security-tests"
@@ -19,25 +25,24 @@ export function PromptTestPanel({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.24em] text-purple-300">
-            LLM security
+            {t("promptTests.eyebrow")}
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-white">
-            Prompt injection test suite
+            {t("promptTests.title")}
           </h2>
           <p className="mt-3 max-w-3xl text-slate-400">
-            Simulated tests detect prompt injection, data exfiltration, connector abuse
-            and approval bypass exposure.
+            {t("promptTests.description")}
           </p>
         </div>
 
         <ActionButton onClick={onRunCurrent} disabled={loading} variant="purple">
-          {loading ? "Running tests..." : "Test current agent"}
+          {loading ? t("promptTests.running") : t("promptTests.runCurrent")}
         </ActionButton>
       </div>
 
       {!result && (
         <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
-          No prompt injection tests have been executed yet.
+          {t("promptTests.empty")}
         </div>
       )}
 
@@ -48,9 +53,9 @@ export function PromptTestPanel({
             <h3 className="mt-2 text-2xl font-bold">{result.agent_name}</h3>
 
             <div className="mt-5 grid grid-cols-3 gap-3">
-              <Metric label="Total" value={String(result.total_tests)} />
-              <Metric label="Passed" value={String(result.passed_tests)} />
-              <Metric label="Failed" value={String(result.failed_tests)} />
+              <Metric label={t("promptTests.total")} value={String(result.total_tests)} />
+              <Metric label={t("promptTests.passed")} value={String(result.passed_tests)} />
+              <Metric label={t("promptTests.failed")} value={String(result.failed_tests)} />
             </div>
           </div>
 
@@ -75,6 +80,8 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function FindingCard({ finding }: { finding: PromptInjectionFinding }) {
+  const { t, language } = useI18n();
+
   return (
     <article
       className={`rounded-2xl border p-5 ${
@@ -93,13 +100,15 @@ function FindingCard({ finding }: { finding: PromptInjectionFinding }) {
                   : "bg-red-400/10 text-red-100"
               }`}
             >
-              {finding.passed ? "passed" : "failed"}
+              {finding.passed
+                ? t("promptTests.statusPassed")
+                : t("promptTests.statusFailed")}
             </span>
             <span className="rounded-full bg-white/10 px-3 py-1 text-xs uppercase text-slate-300">
               {finding.category}
             </span>
             <span className="rounded-full bg-white/10 px-3 py-1 text-xs uppercase text-slate-300">
-              {finding.severity}
+              {formatSeverity(finding.severity, language)}
             </span>
           </div>
 
@@ -110,19 +119,27 @@ function FindingCard({ finding }: { finding: PromptInjectionFinding }) {
       </div>
 
       <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/60 p-4">
-        <p className="text-xs uppercase tracking-wide text-slate-500">Attack prompt</p>
+        <p className="text-xs uppercase tracking-wide text-slate-500">
+          {t("promptTests.attackPrompt")}
+        </p>
         <p className="mt-2 text-sm leading-6 text-slate-300">{finding.attack_prompt}</p>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Finding</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            {t("promptTests.finding")}
+          </p>
           <p className="mt-2 text-sm leading-6 text-slate-300">{finding.finding}</p>
         </div>
 
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Recommendation</p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">{finding.recommendation}</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            {t("promptTests.recommendation")}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            {finding.recommendation}
+          </p>
         </div>
       </div>
     </article>
