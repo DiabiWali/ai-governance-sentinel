@@ -39,6 +39,7 @@ import { AgentForm } from "@/components/agents/AgentForm";
 import { AgentInventory } from "@/components/agents/AgentInventory";
 import { CommandCenter } from "@/components/dashboard/CommandCenter";
 import { WorkflowSteps } from "@/components/dashboard/WorkflowSteps";
+import { OverviewCockpit } from "@/components/dashboard/OverviewCockpit";
 import { AppShell } from "@/components/layout/AppShell";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { DashboardTopBar } from "@/components/layout/DashboardTopBar";
@@ -481,6 +482,13 @@ export function GovernanceDashboard() {
             onRefreshAuditLogs={loadAuditLogs}
             onRefreshMonitoring={loadObservability}
             monitoringLoading={observabilityLoading}
+          />
+
+          <OverviewCockpit
+            agents={agents}
+            auditLogs={auditLogs}
+            metrics={metrics}
+            onNavigate={setActiveTab}
           />
 
           <WorkflowSteps />
