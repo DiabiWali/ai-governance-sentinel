@@ -91,3 +91,14 @@ class PromptInjectionTestResponse(BaseModel):
     failed_tests: int
     overall_status: str
     findings: List[PromptInjectionFinding]
+
+
+class RiskReportResponse(BaseModel):
+    agent_name: str
+    generated_at: datetime
+    executive_summary: str
+    agent_profile: AgentAssessmentRequest
+    risk_assessment: AgentAssessmentResponse
+    prompt_injection_tests: PromptInjectionTestResponse
+    recommendations: List[str]
+    markdown_report: str

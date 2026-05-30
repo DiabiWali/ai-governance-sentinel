@@ -3,6 +3,7 @@ from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.database import Base, engine, get_db
@@ -16,11 +17,13 @@ from app.models import (
     PromptInjectionTestResponse,
     RiskAssessmentRead,
     RiskFactor,
+    RiskReportResponse,
 )
 from app.prompt_tests import (
     get_prompt_injection_scenarios,
     run_prompt_injection_tests,
 )
+from app.reporting import generate_risk_report
 from app.risk_engine import calculate_risk_score
 
 
@@ -32,8 +35,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AI Governance Sentinel API",
-    description="API for AI agent inventory, risk scoring and governance controls.",
-    version="0.4.0",
+    description="API for AI agent inventory, risk scoring, prompt injection testing and risk reporting.",
+    version="0.5.0",
     lifespan=lifespan,
 )
 
@@ -124,7 +127,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "ai-governance-sentinel-api",
-        "version": "0.4.0",
+        "version": "0.5.0",
     }
 
 
@@ -226,3 +229,60 @@ def run_prompt_tests_for_saved_agent(
     payload = agent_to_assessment_request(agent)
 
     return run_prompt_injection_tests(payload)
+
+
+@app.post("/reports/generate", response_model=RiskReportResponse)
+def generate_report(payload: AgentAssessmentRequest):
+    return generate_risk_report(payload)
+
+
+@app.post("/reports/generate/markdown", response_class=PlainTextResponse)
+def generate_markdown_report(payload: AgentAssessmentRequest):
+    report = generate_risk_report(payload)
+
+    return PlainTextResponse(
+        content=report.markdown_report,
+        media_type="text/markdown",
+    )
+
+
+@app.get("/agents/{agent_id}/report", response_model=RiskReportResponse)
+def generate_report_for_saved_agent(
+    agent_id: int,
+    db: Session = Depends(get_db),
+):
+    agent = (
+        db.query(Agent)
+        .filter(Agent.id == agent_id)
+        .first()
+    )
+
+    if agent is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    payload = agent_to_assessment_request(agent)
+
+    return generate_risk_report(payload)
+
+
+@app.get("/agents/{agent_id}/report/markdown", response_class=PlainTextResponse)
+def generate_markdown_report_for_saved_agent(
+    agent_id: int,
+    db: Session = Depends(get_db),
+):
+    agent = (
+        db.query(Agent)
+        .filter(Agent.id == agent_id)
+        .first()
+    )
+
+    if agent is None:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    payload = agent_to_assessment_request(agent)
+    report = generate_risk_report(payload)
+
+    return PlainTextResponse(
+        content=report.markdown_report,
+        media_type="text/markdown",
+    )
