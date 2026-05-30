@@ -4,6 +4,8 @@ import type {
   AgentRead,
   AuditLogRead,
   ComplianceMappingResponse,
+  DiscoveryScanRequest,
+  DiscoveryScanResponse,
   HealthStatus,
   ObservabilityMetrics,
   PromptInjectionTestResponse,
@@ -218,5 +220,29 @@ export async function mapComplianceForAgent(
   });
 
   return parseResponse<ComplianceMappingResponse>(response);
+}
+
+export async function scanDiscoveryAssets(
+  payload: DiscoveryScanRequest
+): Promise<DiscoveryScanResponse> {
+  const response = await fetch(`${API_URL}/discovery/scan`, {
+    method: "POST",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<DiscoveryScanResponse>(response);
+}
+
+export async function ingestEndpointDiscoveryReport(
+  payload: Record<string, unknown>
+): Promise<DiscoveryScanResponse> {
+  const response = await fetch(`${API_URL}/discovery/endpoint/report`, {
+    method: "POST",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<DiscoveryScanResponse>(response);
 }
 
