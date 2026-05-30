@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict
+from app.database import Base
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func
 
 
 class AgentAssessmentRequest(BaseModel):
@@ -169,3 +171,88 @@ class AuditLogRead(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+
+class DiscoveredAIAssetRecord(Base):
+    __tablename__ = "discovered_ai_assets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    source = Column(String, nullable=False, index=True)
+    source_id = Column(String, nullable=False, index=True)
+    detected_type = Column(String, nullable=False)
+    confidence = Column(String, nullable=False, index=True)
+    model_provider = Column(String, nullable=False, default="Unknown")
+    data_sensitivity = Column(String, nullable=False, default="internal")
+    autonomy_level = Column(String, nullable=False, default="suggest_action")
+    connectors = Column(JSON, nullable=False, default=list)
+    internet_exposed = Column(Boolean, nullable=False, default=False)
+    human_approval_required = Column(Boolean, nullable=False, default=False)
+    stores_prompts = Column(Boolean, nullable=False, default=False)
+    stores_outputs = Column(Boolean, nullable=False, default=False)
+    indicators = Column(JSON, nullable=False, default=list)
+    findings = Column(JSON, nullable=False, default=list)
+    recommended_action = Column(String, nullable=False)
+    review_status = Column(String, nullable=False, default="new", index=True)
+    promoted_agent_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class DiscoveryScanRequest(BaseModel):
+    source: str
+    source_name: str = "manual"
+    payload: Dict[str, Any]
+
+
+class DiscoveryFinding(BaseModel):
+    label: str
+    severity: str
+    evidence: str
+
+
+class DiscoveredAIAsset(BaseModel):
+    name: str
+    source: str
+    source_id: str
+    detected_type: str
+    confidence: str
+    model_provider: str
+    data_sensitivity: str
+    autonomy_level: str
+    connectors: List[str]
+    internet_exposed: bool
+    human_approval_required: bool
+    stores_prompts: bool
+    stores_outputs: bool
+    indicators: List[str]
+    findings: List[DiscoveryFinding]
+    recommended_action: str
+
+
+class DiscoveryScanSummary(BaseModel):
+    scanned_items: int
+    detected_assets: int
+    high_confidence: int
+    medium_confidence: int
+    low_confidence: int
+
+
+class DiscoveryScanResponse(BaseModel):
+    source: str
+    source_name: str
+    summary: DiscoveryScanSummary
+    assets: List[DiscoveredAIAsset]
+
+class DiscoveredAIAssetRead(DiscoveredAIAsset):
+    id: int
+    review_status: str
+    promoted_agent_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DiscoveryAssetStatusUpdate(BaseModel):
+    review_status: str
+

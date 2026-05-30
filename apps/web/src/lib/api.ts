@@ -4,6 +4,9 @@ import type {
   AgentRead,
   AuditLogRead,
   ComplianceMappingResponse,
+  DiscoveryScanRequest,
+  DiscoveryScanResponse,
+  DiscoveredAIAssetRead,
   HealthStatus,
   ObservabilityMetrics,
   PromptInjectionTestResponse,
@@ -218,5 +221,53 @@ export async function mapComplianceForAgent(
   });
 
   return parseResponse<ComplianceMappingResponse>(response);
+}
+
+export async function scanDiscoveryAssets(
+  payload: DiscoveryScanRequest
+): Promise<DiscoveryScanResponse> {
+  const response = await fetch(`${API_URL}/discovery/scan`, {
+    method: "POST",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<DiscoveryScanResponse>(response);
+}
+
+export async function ingestEndpointDiscoveryReport(
+  payload: Record<string, unknown>
+): Promise<DiscoveryScanResponse> {
+  const response = await fetch(`${API_URL}/discovery/endpoint/report`, {
+    method: "POST",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<DiscoveryScanResponse>(response);
+}
+
+export async function listDiscoveredAssets(): Promise<DiscoveredAIAssetRead[]> {
+  const response = await fetch(`${API_URL}/discovery/assets`, {
+    method: "GET",
+    headers: authHeaders(),
+  });
+
+  return parseResponse<DiscoveredAIAssetRead[]>(response);
+}
+
+export async function updateDiscoveredAssetStatus(
+  assetId: number,
+  reviewStatus: string
+): Promise<DiscoveredAIAssetRead> {
+  const response = await fetch(`${API_URL}/discovery/assets/${assetId}/status`, {
+    method: "PATCH",
+    headers: jsonAuthHeaders(),
+    body: JSON.stringify({
+      review_status: reviewStatus,
+    }),
+  });
+
+  return parseResponse<DiscoveredAIAssetRead>(response);
 }
 

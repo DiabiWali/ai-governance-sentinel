@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState } from "react";
 
 import {
   assessRisk,
   createAgent,
   deleteAgentById,
+  scanDiscoveryAssets,
+  ingestEndpointDiscoveryReport,
+  listDiscoveredAssets,
+  updateDiscoveredAssetStatus,
   downloadPdfForAgent,
   downloadPdfForCurrentForm,
   generateRiskReport,
@@ -21,15 +28,19 @@ import {
   runPromptTests,
   runPromptTestsForAgent,
   updateAgent,
-} from "@/lib/api";
+  } from "@/lib/api";
 import { INITIAL_AGENT_FORM } from "@/lib/constants";
-import { downloadBlob, safeFileName } from "@/lib/formatters";
+import { downloadBlob,
+  safeFileName } from "@/lib/formatters";
 import { riskWeight } from "@/lib/risk";
 import { useI18n } from "@/i18n/I18nProvider";
 import type {
   AgentAssessmentForm,
   AgentRead,
   AuditLogRead,
+  DiscoveredAIAsset,
+  DiscoveredAIAssetRead,
+  DiscoveryScanResponse,
   HealthStatus,
   ObservabilityMetrics,
   PromptInjectionTestResponse,
@@ -43,6 +54,7 @@ import { AgentForm } from "@/components/agents/AgentForm";
 import { AgentInventory } from "@/components/agents/AgentInventory";
 import { CompliancePanel } from "@/components/compliance/CompliancePanel";
 import { CommandCenter } from "@/components/dashboard/CommandCenter";
+import { DiscoveryPanel } from "@/components/discovery/DiscoveryPanel";
 import { WorkflowSteps } from "@/components/dashboard/WorkflowSteps";
 import { OverviewCockpit } from "@/components/dashboard/OverviewCockpit";
 import { AppShell } from "@/components/layout/AppShell";
@@ -67,6 +79,8 @@ export function GovernanceDashboard() {
   const [complianceMapping, setComplianceMapping] = useState<ComplianceMappingResponse | null>(null);
 
   const [agents, setAgents] = useState<AgentRead[]>([]);
+  const [discoveryResult, setDiscoveryResult] = useState<DiscoveryScanResponse | null>(null);
+  const [discoveryHistory, setDiscoveryHistory] = useState<DiscoveredAIAssetRead[]>([]);
   const [principal, setPrincipal] = useState<SecurityPrincipal | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogRead[]>([]);
 
@@ -88,10 +102,13 @@ export function GovernanceDashboard() {
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [auditLoading, setAuditLoading] = useState(false);
   const [observabilityLoading, setObservabilityLoading] = useState(false);
+  const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const [discoveryHistoryLoading, setDiscoveryHistoryLoading] = useState(false);
 
   useEffect(() => {
     void loadCurrentPrincipal();
     void loadAgents();
+    void loadDiscoveryHistory();
     void loadAuditLogs();
     void loadObservability();
   }, []);
@@ -201,6 +218,20 @@ export function GovernanceDashboard() {
     }
   }
 
+
+  async function loadDiscoveryHistory() {
+    setDiscoveryHistoryLoading(true);
+
+    try {
+      const data = await listDiscoveredAssets();
+      setDiscoveryHistory(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setDiscoveryHistoryLoading(false);
+    }
+  }
+
   async function loadAgents() {
     setInventoryLoading(true);
 
@@ -211,6 +242,115 @@ export function GovernanceDashboard() {
       alert("Unable to load agents. Check the API key and FastAPI server.");
     } finally {
       setInventoryLoading(false);
+    }
+  }
+
+
+
+
+  async function handleUpdateDiscoveryStatus(assetId: number, status: string) {
+    try {
+      await updateDiscoveredAssetStatus(assetId, status);
+      await loadDiscoveryHistory();
+      void loadAuditLogs();
+    } catch (error) {
+      console.error(error);
+      alert("Unable to update discovery asset status.");
+    }
+  }
+
+  async function handleIngestEndpointDiscoveryReport(
+    payload: Record<string, unknown>
+  ) {
+    setDiscoveryLoading(true);
+
+    try {
+      const data = await ingestEndpointDiscoveryReport(payload);
+      setDiscoveryResult(data);
+      void loadAuditLogs();
+      void loadObservability();
+      void loadDiscoveryHistory();
+      void loadDiscoveryHistory();
+      void loadDiscoveryHistory();
+      void loadDiscoveryHistory();
+    } catch (error) {
+      console.error(error);
+      alert("Unable to ingest endpoint discovery report.");
+    } finally {
+      setDiscoveryLoading(false);
+    }
+  }
+
+  async function handleRunDiscoveryScan(
+    source: string,
+    sourceName: string,
+    payload: Record<string, unknown>
+  ) {
+    setDiscoveryLoading(true);
+
+    try {
+      const data = await scanDiscoveryAssets({
+        source,
+        source_name: sourceName,
+        payload,
+      });
+
+      setDiscoveryResult(data);
+      void loadAuditLogs();
+      void loadObservability();
+    } catch (error) {
+      console.error(error);
+      alert("Unable to run discovery scan.");
+    } finally {
+      setDiscoveryLoading(false);
+    }
+  }
+
+  async function handlePromoteDiscoveredAsset(asset: DiscoveredAIAsset) {
+    const persistedDiscoveryAssetId =
+      "id" in asset ? Number((asset as DiscoveredAIAssetRead).id) : null;
+
+    setSaving(true);
+
+    try {
+      const savedAgent = await createAgent({
+        name: asset.name,
+        purpose: `Discovered from ${asset.source} (${asset.detected_type}). Recommended action: ${asset.recommended_action}`,
+        model_provider: asset.model_provider,
+        data_sensitivity: asset.data_sensitivity,
+        autonomy_level: asset.autonomy_level,
+        connectors: asset.connectors,
+        internet_exposed: asset.internet_exposed,
+        human_approval_required: asset.human_approval_required,
+        stores_prompts: asset.stores_prompts,
+        stores_outputs: asset.stores_outputs,
+      });
+
+      setAgents((current) => [savedAgent, ...current]);
+      setEditingAgentId(savedAgent.id);
+
+      if (savedAgent.latest_assessment) {
+        setResult({
+          agent_name: savedAgent.name,
+          risk_score: savedAgent.latest_assessment.risk_score,
+          risk_level: savedAgent.latest_assessment.risk_level,
+          factors: savedAgent.latest_assessment.factors,
+        });
+      }
+
+      if (persistedDiscoveryAssetId) {
+        await updateDiscoveredAssetStatus(persistedDiscoveryAssetId, "promoted");
+      }
+
+      await loadDiscoveryHistory();
+      void loadAuditLogs();
+      void loadObservability();
+      setActiveTab("agents");
+    } catch (error) {
+      console.error(error);
+      alert("Unable to promote discovered asset to inventory.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -406,6 +546,7 @@ export function GovernanceDashboard() {
         });
       }
 
+      await loadDiscoveryHistory();
       void loadAuditLogs();
       void loadObservability();
       setActiveTab("agents");
@@ -510,6 +651,20 @@ export function GovernanceDashboard() {
             readiness={readiness}
             metrics={metrics}
           />
+
+      {activeTab === "discovery" && (
+        <DiscoveryPanel
+          result={discoveryResult}
+          loading={discoveryLoading}
+          onScan={handleRunDiscoveryScan}
+          onEndpointReport={handleIngestEndpointDiscoveryReport}
+          onPromote={handlePromoteDiscoveredAsset}
+          history={discoveryHistory}
+          historyLoading={discoveryHistoryLoading}
+          onRefreshHistory={loadDiscoveryHistory}
+          onUpdateHistoryStatus={handleUpdateDiscoveryStatus}
+        />
+      )}
 
       {activeTab === "overview" && (
         <>

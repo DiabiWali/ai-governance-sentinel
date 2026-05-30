@@ -431,3 +431,61 @@ These keys are for local development only and must not be used in production.
 
 <!-- V1_ENTERPRISE_PLATFORM_END -->
 
+<!-- V1_1_SHADOW_AI_DISCOVERY_START -->
+
+## V1.1 - Shadow AI Discovery Engine
+
+AI Governance Sentinel v1.1 introduces a Shadow AI Discovery Engine.
+
+The goal is to detect unmanaged AI usage before it becomes an uncontrolled security, compliance or data governance risk.
+
+### What v1.1 adds
+
+- Windows endpoint Shadow AI scanner
+- Endpoint report ingestion API
+- Persistent discovered AI assets
+- Discovery history in the frontend
+- Review statuses for discovered assets
+- Promotion from discovered asset to governed inventory
+- Detection of local LLM runtimes such as Ollama
+- Detection of AI developer tooling such as LangChain, LlamaIndex or CrewAI
+- Detection of RAG and vector tooling such as Qdrant
+- Noise reduction to avoid false positives from generic Docker, Python or Node usage
+
+### Discovery workflow
+
+1. Run the endpoint scanner on an authorized workstation
+2. Generate an endpoint JSON report
+3. Import the report into the Discovery module
+4. Review detected Shadow AI assets
+5. Mark assets as reviewing, ignored, false positive or promoted
+6. Promote confirmed assets into the governed AI inventory
+
+### Endpoint scanner
+
+The Windows endpoint scanner is located at:
+
+    tools/endpoint-scanner/windows_shadow_ai_scan.ps1
+
+Generate a local report:
+
+    .\tools\endpoint-scanner\windows_shadow_ai_scan.ps1 > endpoint-report.json
+
+Post directly to the API:
+
+    .\tools\endpoint-scanner\windows_shadow_ai_scan.ps1 -PostToApi -ApiUrl "http://localhost:8000" -ApiKey "dev-admin-key"
+
+### Security position
+
+The scanner is designed for governance and inventory. It does not collect secrets. It reports signals such as process names, listening ports, Docker images, AI packages, known local AI paths and environment variable names without values.
+
+Run this scanner only on endpoints you are authorized to assess.
+
+### Why it matters
+
+Shadow AI is not only about chatbots. It can include local LLM runtimes, automation tools, RAG stacks, developer frameworks, unofficial agents, Docker-based AI tools and AI-enabled workflows.
+
+AI Governance Sentinel v1.1 starts moving from declarative inventory to proactive detection.
+
+<!-- V1_1_SHADOW_AI_DISCOVERY_END -->
+

@@ -1,4 +1,4 @@
-﻿import type { DashboardTab } from "@/components/layout/TabNavigation";
+import type { DashboardTab } from "@/components/layout/TabNavigation";
 import type { HealthStatus, ObservabilityMetrics, SecurityPrincipal } from "@/types";
 import { useI18n } from "@/i18n/I18nProvider";
 
@@ -6,6 +6,10 @@ const titleKeysByTab: Record<DashboardTab, { title: string; subtitle: string }> 
   overview: {
     title: "topbar.overviewTitle",
     subtitle: "topbar.overviewSubtitle",
+  },
+  discovery: {
+    title: "topbar.discoveryTitle",
+    subtitle: "topbar.discoverySubtitle",
   },
   agents: {
     title: "topbar.agentsTitle",

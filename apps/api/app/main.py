@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import to_audit_log_read, write_audit_log
 from app.compliance import generate_compliance_mapping
+from app.discovery import run_discovery_scan
+from app.discovery_store import persist_discovered_assets, to_discovered_asset_read
 from app.database import Base, engine, get_db
 from app.db_models import Agent, AuditLog, RiskAssessment
 from app.models import (
@@ -21,6 +23,11 @@ from app.models import (
     AgentRead,
     AuditLogRead,
     ComplianceMappingResponse,
+    DiscoveryScanRequest,
+    DiscoveryScanResponse,
+    DiscoveredAIAssetRead,
+    DiscoveryAssetStatusUpdate,
+    DiscoveredAIAssetRecord,
     DeleteResponse,
     PromptInjectionScenario,
     PromptInjectionTestResponse,
@@ -49,7 +56,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Governance Sentinel API",
     description="API for AI agent inventory, risk scoring, prompt injection testing, reporting and enterprise security.",
-    version="0.8.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
@@ -140,7 +147,7 @@ def health_check():
     return {
         "status": "ok",
         "service": "ai-governance-sentinel-api",
-        "version": "0.8.0",
+        "version": "1.1.0",
     }
 
 
@@ -761,7 +768,7 @@ def liveness_check():
     return {
         "status": "live",
         "service": "ai-governance-sentinel-api",
-        "version": "0.8.0",
+        "version": "1.1.0",
     }
 
 
@@ -774,7 +781,7 @@ def readiness_check(db: Session = Depends(get_db)):
             "status": "ready",
             "service": "ai-governance-sentinel-api",
             "database": "ok",
-            "version": "0.8.0",
+            "version": "1.1.0",
         }
     except Exception as error:
         return JSONResponse(
@@ -784,7 +791,7 @@ def readiness_check(db: Session = Depends(get_db)):
                 "service": "ai-governance-sentinel-api",
                 "database": "error",
                 "detail": str(error),
-                "version": "0.8.0",
+                "version": "1.1.0",
             },
         )
 
@@ -839,7 +846,7 @@ def get_metrics(
 
     return {
         "service": "ai-governance-sentinel-api",
-        "version": "0.8.0",
+        "version": "1.1.0",
         "requested_by": {
             "actor": principal.actor,
             "role": principal.role,
@@ -915,4 +922,141 @@ def map_compliance_for_saved_agent(
     )
 
     return mapping
+
+@app.post("/discovery/scan", response_model=DiscoveryScanResponse)
+def scan_shadow_ai_assets(
+    payload: DiscoveryScanRequest,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    result = run_discovery_scan(payload)
+    persist_discovered_assets(db, result.assets)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="discovery.scan",
+        resource_type="discovery",
+        status="success",
+        details={
+            "source": payload.source,
+            "source_name": payload.source_name,
+            "scanned_items": result.summary.scanned_items,
+            "detected_assets": result.summary.detected_assets,
+            "high_confidence": result.summary.high_confidence,
+            "medium_confidence": result.summary.medium_confidence,
+            "low_confidence": result.summary.low_confidence,
+        },
+    )
+
+    return result
+
+@app.post("/discovery/endpoint/report", response_model=DiscoveryScanResponse)
+def ingest_endpoint_discovery_report(
+    payload: dict,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    host = payload.get("host", {}) if isinstance(payload.get("host"), dict) else {}
+    source_name = str(host.get("hostname") or "endpoint-report")
+
+    request = DiscoveryScanRequest(
+        source="endpoint",
+        source_name=source_name,
+        payload=payload,
+    )
+
+    result = run_discovery_scan(request)
+    persist_discovered_assets(db, result.assets)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="discovery.endpoint.report",
+        resource_type="discovery",
+        status="success",
+        details={
+            "source": "endpoint",
+            "source_name": source_name,
+            "scanned_items": result.summary.scanned_items,
+            "detected_assets": result.summary.detected_assets,
+            "high_confidence": result.summary.high_confidence,
+            "medium_confidence": result.summary.medium_confidence,
+            "low_confidence": result.summary.low_confidence,
+        },
+    )
+
+    return result
+
+@app.get("/discovery/assets", response_model=list[DiscoveredAIAssetRead])
+def list_discovered_ai_assets(
+    source: str | None = None,
+    confidence: str | None = None,
+    review_status: str | None = None,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    query = db.query(DiscoveredAIAssetRecord)
+
+    if source:
+        query = query.filter(DiscoveredAIAssetRecord.source == source)
+
+    if confidence:
+        query = query.filter(DiscoveredAIAssetRecord.confidence == confidence)
+
+    if review_status:
+        query = query.filter(DiscoveredAIAssetRecord.review_status == review_status)
+
+    records = (
+        query.order_by(DiscoveredAIAssetRecord.updated_at.desc())
+        .limit(200)
+        .all()
+    )
+
+    return [to_discovered_asset_read(record) for record in records]
+
+
+@app.patch("/discovery/assets/{asset_id}/status", response_model=DiscoveredAIAssetRead)
+def update_discovered_ai_asset_status(
+    asset_id: int,
+    payload: DiscoveryAssetStatusUpdate,
+    db: Session = Depends(get_db),
+    principal: SecurityPrincipal = Security(require_analyst_or_admin),
+):
+    allowed_statuses = {"new", "reviewing", "promoted", "ignored", "false_positive"}
+
+    if payload.review_status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"review_status must be one of: {', '.join(sorted(allowed_statuses))}",
+        )
+
+    record = (
+        db.query(DiscoveredAIAssetRecord)
+        .filter(DiscoveredAIAssetRecord.id == asset_id)
+        .first()
+    )
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Discovered asset not found")
+
+    record.review_status = payload.review_status
+    db.commit()
+    db.refresh(record)
+
+    write_audit_log(
+        db=db,
+        principal=principal,
+        action="discovery.asset.status_update",
+        resource_type="discovery_asset",
+        resource_id=str(asset_id),
+        status="success",
+        details={
+            "review_status": payload.review_status,
+            "source": record.source,
+            "source_id": record.source_id,
+        },
+    )
+
+    return to_discovered_asset_read(record)
 

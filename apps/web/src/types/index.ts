@@ -167,3 +167,57 @@ export type ComplianceMappingResponse = {
   frameworks: ComplianceFrameworkMapping[];
 };
 
+export type DiscoveryScanRequest = {
+  source: string;
+  source_name: string;
+  payload: Record<string, unknown>;
+};
+
+export type DiscoveryFinding = {
+  label: string;
+  severity: string;
+  evidence: string;
+};
+
+export type DiscoveredAIAsset = {
+  name: string;
+  source: string;
+  source_id: string;
+  detected_type: string;
+  confidence: string;
+  model_provider: string;
+  data_sensitivity: string;
+  autonomy_level: string;
+  connectors: string[];
+  internet_exposed: boolean;
+  human_approval_required: boolean;
+  stores_prompts: boolean;
+  stores_outputs: boolean;
+  indicators: string[];
+  findings: DiscoveryFinding[];
+  recommended_action: string;
+};
+
+export type DiscoveryScanSummary = {
+  scanned_items: number;
+  detected_assets: number;
+  high_confidence: number;
+  medium_confidence: number;
+  low_confidence: number;
+};
+
+export type DiscoveryScanResponse = {
+  source: string;
+  source_name: string;
+  summary: DiscoveryScanSummary;
+  assets: DiscoveredAIAsset[];
+};
+
+export type DiscoveredAIAssetRead = DiscoveredAIAsset & {
+  id: number;
+  review_status: string;
+  promoted_agent_id: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
