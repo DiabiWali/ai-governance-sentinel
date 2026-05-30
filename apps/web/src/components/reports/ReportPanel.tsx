@@ -1,7 +1,10 @@
-﻿import type { RiskReportResponse } from "@/types";
+﻿"use client";
+
+import type { RiskReportResponse } from "@/types";
 import { formatDateTime } from "@/lib/formatters";
 import { riskTone } from "@/lib/risk";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export function ReportPanel({
   report,
@@ -16,6 +19,8 @@ export function ReportPanel({
   onDownloadMarkdown: () => void;
   onDownloadPdf: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <section
       id="reports"
@@ -24,51 +29,70 @@ export function ReportPanel({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.24em] text-cyan-300">
-            Reporting
+            {t("reportsModule.eyebrow")}
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-white">
-            Governance report v1
+            {t("reportsModule.title")}
           </h2>
           <p className="mt-3 max-w-3xl text-slate-400">
-            Generate an executive and technical report combining risk scoring,
-            prompt injection findings, compliance mapping and remediation controls.
+            {t("reportsModule.description")}
           </p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <ActionButton onClick={onGenerate} disabled={loading} variant="green">
-            {loading ? "Generating..." : "Generate report"}
+            {loading
+              ? t("reportsModule.generating")
+              : t("reportsModule.generateReport")}
           </ActionButton>
           <ActionButton onClick={onDownloadMarkdown} disabled={!report} variant="green">
-            Markdown
+            {t("reportsModule.markdown")}
           </ActionButton>
           <ActionButton onClick={onDownloadPdf} disabled={loading} variant="white">
-            PDF
+            {t("reportsModule.pdf")}
           </ActionButton>
         </div>
       </div>
 
       {!report && (
         <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
-          No report generated yet.
+          {t("reportsModule.noReport")}
         </div>
       )}
 
       {report && (
         <div className="mt-6 grid gap-6">
           <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
-            <div className={`rounded-3xl border p-5 ${riskTone(report.risk_assessment.risk_level)}`}>
-              <p className="text-sm uppercase tracking-wide">Generated report</p>
+            <div
+              className={`rounded-3xl border p-5 ${riskTone(
+                report.risk_assessment.risk_level
+              )}`}
+            >
+              <p className="text-sm uppercase tracking-wide">
+                {t("reportsModule.generatedReport")}
+              </p>
               <h3 className="mt-2 text-2xl font-bold">{report.agent_name}</h3>
               <p className="mt-3 text-sm leading-6 text-slate-300">
                 {report.executive_summary}
               </p>
 
               <div className="mt-5 grid gap-3">
-                <MiniInfo label="Risk score" value={`${report.risk_assessment.risk_score}/100`} />
-                <MiniInfo label="Risk level" value={report.risk_assessment.risk_level} />
-                <MiniInfo label="Failed tests" value={String(report.prompt_injection_tests.failed_tests)} />
-                <MiniInfo label="Generated" value={formatDateTime(report.generated_at)} />
+                <MiniInfo
+                  label={t("reportsModule.riskScore")}
+                  value={`${report.risk_assessment.risk_score}/100`}
+                />
+                <MiniInfo
+                  label={t("reportsModule.riskLevel")}
+                  value={report.risk_assessment.risk_level}
+                />
+                <MiniInfo
+                  label={t("reportsModule.failedTests")}
+                  value={String(report.prompt_injection_tests.failed_tests)}
+                />
+                <MiniInfo
+                  label={t("reportsModule.generated")}
+                  value={formatDateTime(report.generated_at)}
+                />
               </div>
             </div>
 
@@ -89,14 +113,17 @@ function ReportComplianceSummary({
 }: {
   report: RiskReportResponse;
 }) {
+  const { t } = useI18n();
   const mapping = report.compliance_mapping;
 
   if (!mapping) {
     return (
       <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-5">
-        <h3 className="text-xl font-semibold text-white">Compliance mapping</h3>
+        <h3 className="text-xl font-semibold text-white">
+          {t("reportsModule.complianceMapping")}
+        </h3>
         <p className="mt-3 text-sm leading-6 text-slate-400">
-          This report does not include compliance mapping data.
+          {t("reportsModule.noCompliance")}
         </p>
       </div>
     );
@@ -105,7 +132,7 @@ function ReportComplianceSummary({
   return (
     <div className={`rounded-3xl border p-5 ${postureTone(mapping.overall_posture)}`}>
       <p className="text-sm uppercase tracking-wide opacity-80">
-        Compliance posture
+        {t("reportsModule.compliancePosture")}
       </p>
       <p className="mt-2 text-5xl font-bold">
         {mapping.overall_score}

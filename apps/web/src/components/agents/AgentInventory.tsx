@@ -1,7 +1,10 @@
-﻿import type { AgentRead } from "@/types";
+﻿"use client";
+
+import type { AgentRead } from "@/types";
 import { humanizeEnum } from "@/lib/formatters";
 import { riskBadge } from "@/lib/risk";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export function AgentInventory({
   agents,
@@ -40,6 +43,8 @@ export function AgentInventory({
   onDownloadPdf: (agentId: number, agentName: string) => void;
   onCompliance: (agentId: number) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <section
       id="inventory"
@@ -48,18 +53,20 @@ export function AgentInventory({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.24em] text-cyan-300">
-            Agent inventory
+            {t("agentsModule.eyebrow")}
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-white">
-            Manage saved AI agents
+            {t("agentsModule.title")}
           </h2>
           <p className="mt-3 max-w-3xl text-slate-400">
-            Search, filter, edit, delete, test, map compliance and report on persistent AI agents.
+            {t("agentsModule.description")}
           </p>
         </div>
 
         <ActionButton onClick={onRefresh} disabled={inventoryLoading}>
-          {inventoryLoading ? "Refreshing..." : "Refresh inventory"}
+          {inventoryLoading
+            ? t("agentsModule.refreshing")
+            : t("agentsModule.refreshInventory")}
         </ActionButton>
       </div>
 
@@ -68,7 +75,7 @@ export function AgentInventory({
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
           className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-          placeholder="Search by name, purpose, provider or connector..."
+          placeholder={t("agentsModule.searchPlaceholder")}
         />
 
         <select
@@ -76,12 +83,12 @@ export function AgentInventory({
           onChange={(event) => onRiskFilterChange(event.target.value)}
           className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
         >
-          <option value="all">All risks</option>
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-          <option value="no_assessment">No assessment</option>
+          <option value="all">{t("agentsModule.allRisks")}</option>
+          <option value="critical">{t("agentsModule.critical")}</option>
+          <option value="high">{t("agentsModule.high")}</option>
+          <option value="medium">{t("agentsModule.medium")}</option>
+          <option value="low">{t("agentsModule.low")}</option>
+          <option value="no_assessment">{t("agentsModule.noAssessment")}</option>
         </select>
 
         <select
@@ -89,17 +96,17 @@ export function AgentInventory({
           onChange={(event) => onSortModeChange(event.target.value)}
           className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
         >
-          <option value="updated_desc">Recently updated</option>
-          <option value="risk_desc">Highest risk</option>
-          <option value="risk_asc">Lowest risk</option>
-          <option value="name_asc">Name A-Z</option>
+          <option value="updated_desc">{t("agentsModule.recentlyUpdated")}</option>
+          <option value="risk_desc">{t("agentsModule.highestRisk")}</option>
+          <option value="risk_asc">{t("agentsModule.lowestRisk")}</option>
+          <option value="name_asc">{t("agentsModule.nameAz")}</option>
         </select>
       </div>
 
       <div className="mt-6">
         {agents.length === 0 && (
           <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
-            No agents match the current filters.
+            {t("agentsModule.noAgents")}
           </div>
         )}
 
@@ -147,6 +154,7 @@ function AgentCard({
   onDownloadPdf: () => void;
   onCompliance: () => void;
 }) {
+  const { t } = useI18n();
   const assessment = agent.latest_assessment;
 
   return (
@@ -177,14 +185,20 @@ function AgentCard({
       <p className="mt-4 text-sm leading-6 text-slate-300">{agent.purpose}</p>
 
       <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-        <MiniInfo label="Sensitivity" value={humanizeEnum(agent.data_sensitivity)} />
-        <MiniInfo label="Autonomy" value={humanizeEnum(agent.autonomy_level)} />
+        <MiniInfo
+          label={t("agentsModule.sensitivity")}
+          value={humanizeEnum(agent.data_sensitivity)}
+        />
+        <MiniInfo
+          label={t("agentsModule.autonomy")}
+          value={humanizeEnum(agent.autonomy_level)}
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
         {agent.connectors.length === 0 && (
           <span className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
-            no connector
+            {t("agentsModule.noConnector")}
           </span>
         )}
 
@@ -199,27 +213,42 @@ function AgentCard({
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <button onClick={onEdit} className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-400/20">
-          Edit
+        <button
+          onClick={onEdit}
+          className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-400/20"
+        >
+          {t("agentsModule.edit")}
         </button>
-        <button onClick={onRunTests} className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-4 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20">
-          Tests
+        <button
+          onClick={onRunTests}
+          className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-4 py-3 font-semibold text-purple-100 transition hover:bg-purple-400/20"
+        >
+          {t("agentsModule.tests")}
         </button>
-        <button onClick={onCompliance} className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20">
-          Compliance
+        <button
+          onClick={onCompliance}
+          className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
+        >
+          {t("agentsModule.compliance")}
         </button>
-        <button onClick={onGenerateReport} className="rounded-xl border border-teal-400/30 bg-teal-400/10 px-4 py-3 font-semibold text-teal-100 transition hover:bg-teal-400/20">
-          Report
+        <button
+          onClick={onGenerateReport}
+          className="rounded-xl border border-teal-400/30 bg-teal-400/10 px-4 py-3 font-semibold text-teal-100 transition hover:bg-teal-400/20"
+        >
+          {t("agentsModule.report")}
         </button>
-        <button onClick={onDownloadPdf} className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 font-semibold text-white transition hover:bg-white/20">
-          PDF
+        <button
+          onClick={onDownloadPdf}
+          className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 font-semibold text-white transition hover:bg-white/20"
+        >
+          {t("agentsModule.pdf")}
         </button>
         <button
           onClick={onDelete}
           disabled={isDeleting}
           className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 font-semibold text-red-100 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isDeleting ? "Deleting..." : "Delete"}
+          {isDeleting ? t("agentsModule.deleting") : t("agentsModule.delete")}
         </button>
       </div>
     </article>

@@ -1,10 +1,13 @@
-﻿import type {
+﻿"use client";
+
+import type {
   ComplianceControlMapping,
   ComplianceFrameworkMapping,
   ComplianceMappingResponse,
 } from "@/types";
 import { formatDateTime } from "@/lib/formatters";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export function CompliancePanel({
   mapping,
@@ -15,37 +18,35 @@ export function CompliancePanel({
   loading: boolean;
   onMapCurrent: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.24em] text-emerald-300">
-            Compliance mapping
+            {t("complianceModule.eyebrow")}
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-white">
-            Governance posture engine
+            {t("complianceModule.title")}
           </h2>
           <p className="mt-3 max-w-4xl text-slate-400">
-            Map AI agent risk, prompt injection findings, connector exposure,
-            retention and human oversight controls against OWASP LLM Top 10,
-            NIST AI RMF and EU AI Act governance expectations.
+            {t("complianceModule.description")}
           </p>
         </div>
 
         <ActionButton onClick={onMapCurrent} disabled={loading} variant="green">
-          {loading ? "Mapping..." : "Map current agent"}
+          {loading ? t("complianceModule.mapping") : t("complianceModule.mapCurrent")}
         </ActionButton>
       </div>
 
       {!mapping && (
         <div className="mt-6 rounded-3xl border border-dashed border-white/15 bg-slate-900/60 p-10 text-center">
           <p className="text-lg font-semibold text-white">
-            No compliance mapping generated yet.
+            {t("complianceModule.emptyTitle")}
           </p>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-            Define an agent in the Assessment tab, then generate a compliance
-            mapping to understand its governance posture across OWASP, NIST AI RMF
-            and EU AI Act pre-assessment dimensions.
+            {t("complianceModule.emptyDescription")}
           </p>
         </div>
       )}
@@ -56,16 +57,13 @@ export function CompliancePanel({
 
           <div className="grid gap-6 xl:grid-cols-3">
             {mapping.frameworks.map((framework) => (
-              <FrameworkPanel
-                key={framework.framework}
-                framework={framework}
-              />
+              <FrameworkPanel key={framework.framework} framework={framework} />
             ))}
           </div>
 
           <div className="rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-5">
             <p className="text-sm font-semibold uppercase tracking-wide text-yellow-100">
-              Important disclaimer
+              {t("complianceModule.disclaimer")}
             </p>
             <p className="mt-3 text-sm leading-6 text-yellow-100/90">
               {mapping.disclaimer}
@@ -77,16 +75,14 @@ export function CompliancePanel({
   );
 }
 
-function ComplianceSummary({
-  mapping,
-}: {
-  mapping: ComplianceMappingResponse;
-}) {
+function ComplianceSummary({ mapping }: { mapping: ComplianceMappingResponse }) {
+  const { t } = useI18n();
+
   return (
     <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
       <div className={`rounded-3xl border p-6 ${postureTone(mapping.overall_posture)}`}>
         <p className="text-sm uppercase tracking-wide opacity-80">
-          Overall compliance posture
+          {t("complianceModule.overallPosture")}
         </p>
         <p className="mt-3 text-6xl font-bold">
           {mapping.overall_score}
@@ -95,43 +91,37 @@ function ComplianceSummary({
         <p className="mt-4 text-2xl font-semibold capitalize">
           {mapping.overall_posture}
         </p>
-        <p className="mt-4 text-sm opacity-80">
-          Agent: {mapping.agent_name}
-        </p>
+        <p className="mt-4 text-sm opacity-80">Agent: {mapping.agent_name}</p>
       </div>
 
       <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-6">
         <p className="text-sm uppercase tracking-[0.24em] text-cyan-300">
-          Executive summary
+          {t("complianceModule.executiveSummary")}
         </p>
         <h3 className="mt-3 text-2xl font-semibold text-white">
-          Automated governance pre-assessment
+          {t("complianceModule.automatedAssessment")}
         </h3>
         <p className="mt-4 text-sm leading-7 text-slate-300">
           {mapping.executive_summary}
         </p>
         <p className="mt-5 text-xs text-slate-500">
-          Generated at {formatDateTime(mapping.generated_at)}
+          {t("complianceModule.generatedAt")} {formatDateTime(mapping.generated_at)}
         </p>
       </div>
     </div>
   );
 }
 
-function FrameworkPanel({
-  framework,
-}: {
-  framework: ComplianceFrameworkMapping;
-}) {
+function FrameworkPanel({ framework }: { framework: ComplianceFrameworkMapping }) {
+  const { t } = useI18n();
+
   return (
     <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-xl font-semibold text-white">
-            {framework.framework}
-          </h3>
+          <h3 className="text-xl font-semibold text-white">{framework.framework}</h3>
           <p className="mt-2 text-sm text-slate-400">
-            Framework score and control posture.
+            {t("complianceModule.frameworkDescription")}
           </p>
         </div>
 
@@ -143,21 +133,16 @@ function FrameworkPanel({
 
       <div className="mt-5 grid gap-4">
         {framework.controls.map((control) => (
-          <ControlCard
-            key={`${control.framework}-${control.control_id}`}
-            control={control}
-          />
+          <ControlCard key={`${control.framework}-${control.control_id}`} control={control} />
         ))}
       </div>
     </div>
   );
 }
 
-function ControlCard({
-  control,
-}: {
-  control: ComplianceControlMapping;
-}) {
+function ControlCard({ control }: { control: ComplianceControlMapping }) {
+  const { t } = useI18n();
+
   return (
     <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -174,16 +159,14 @@ function ControlCard({
             </span>
           </div>
 
-          <h4 className="mt-3 font-semibold text-white">
-            {control.control_name}
-          </h4>
+          <h4 className="mt-3 font-semibold text-white">{control.control_name}</h4>
         </div>
       </div>
 
       <div className="mt-4 grid gap-4">
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-500">
-            Evidence
+            {t("complianceModule.evidence")}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-300">
             {control.evidence}
@@ -192,7 +175,7 @@ function ControlCard({
 
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-500">
-            Recommendation
+            {t("complianceModule.recommendation")}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-300">
             {control.recommendation}

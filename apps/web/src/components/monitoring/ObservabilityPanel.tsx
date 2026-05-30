@@ -1,6 +1,9 @@
+﻿"use client";
+
 import type { HealthStatus, ObservabilityMetrics, RouteMetrics } from "@/types";
 import { formatUptime } from "@/lib/formatters";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export function ObservabilityPanel({
   liveness,
@@ -15,6 +18,8 @@ export function ObservabilityPanel({
   loading: boolean;
   onRefresh: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <section
       id="monitoring"
@@ -23,49 +28,50 @@ export function ObservabilityPanel({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.24em] text-emerald-300">
-            Operations
+            {t("monitoringModule.eyebrow")}
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-white">
-            Observability & Monitoring
+            {t("monitoringModule.title")}
           </h2>
           <p className="mt-3 max-w-3xl text-slate-400">
-            Runtime health, database readiness, API latency, request volume and
-            governance metrics exposed by the backend.
+            {t("monitoringModule.description")}
           </p>
         </div>
 
         <ActionButton onClick={onRefresh} disabled={loading} variant="green">
-          {loading ? "Refreshing..." : "Refresh monitoring"}
+          {loading
+            ? t("monitoringModule.refreshing")
+            : t("monitoringModule.refreshMonitoring")}
         </ActionButton>
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-4">
-        <MonitoringCard label="Live" value={liveness?.status || "unknown"} good={liveness?.status === "live"} />
-        <MonitoringCard label="Ready" value={readiness?.status || "unknown"} good={readiness?.status === "ready"} />
-        <MonitoringCard label="Database" value={readiness?.database || "unknown"} good={readiness?.database === "ok"} />
-        <MonitoringCard label="API version" value={metrics?.version || liveness?.version || "unknown"} good />
+        <MonitoringCard label={t("monitoringModule.live")} value={liveness?.status || "unknown"} good={liveness?.status === "live"} />
+        <MonitoringCard label={t("monitoringModule.ready")} value={readiness?.status || "unknown"} good={readiness?.status === "ready"} />
+        <MonitoringCard label={t("monitoringModule.database")} value={readiness?.database || "unknown"} good={readiness?.database === "ok"} />
+        <MonitoringCard label={t("monitoringModule.apiVersion")} value={metrics?.version || liveness?.version || "unknown"} good />
       </div>
 
       {metrics && (
         <>
           <div className="mt-6 grid gap-4 md:grid-cols-4">
-            <Metric label="Total requests" value={String(metrics.runtime.total_requests)} />
-            <Metric label="Total errors" value={String(metrics.runtime.total_errors)} />
-            <Metric label="Avg latency" value={`${metrics.runtime.average_latency_ms} ms`} />
-            <Metric label="Uptime" value={formatUptime(metrics.runtime.uptime_seconds)} />
+            <Metric label={t("monitoringModule.totalRequests")} value={String(metrics.runtime.total_requests)} />
+            <Metric label={t("monitoringModule.totalErrors")} value={String(metrics.runtime.total_errors)} />
+            <Metric label={t("monitoringModule.avgLatency")} value={`${metrics.runtime.average_latency_ms} ms`} />
+            <Metric label={t("monitoringModule.uptime")} value={formatUptime(metrics.runtime.uptime_seconds)} />
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
-            <Metric label="Agents in database" value={String(metrics.database.agents_count)} />
-            <Metric label="Risk assessments" value={String(metrics.database.risk_assessments_count)} />
-            <Metric label="Audit logs" value={String(metrics.database.audit_logs_count)} />
+            <Metric label={t("monitoringModule.agentsInDatabase")} value={String(metrics.database.agents_count)} />
+            <Metric label={t("monitoringModule.riskAssessments")} value={String(metrics.database.risk_assessments_count)} />
+            <Metric label={t("monitoringModule.auditLogs")} value={String(metrics.database.audit_logs_count)} />
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
-            <Metric label="Reports generated" value={String(metrics.governance.report_events_count)} />
-            <Metric label="Prompt tests" value={String(metrics.governance.prompt_test_events_count)} />
+            <Metric label={t("monitoringModule.reportsGenerated")} value={String(metrics.governance.report_events_count)} />
+            <Metric label={t("monitoringModule.promptTests")} value={String(metrics.governance.prompt_test_events_count)} />
             <Metric
-              label="Agent changes"
+              label={t("monitoringModule.agentChanges")}
               value={String(
                 metrics.governance.agent_create_events_count +
                   metrics.governance.agent_update_events_count +
@@ -80,7 +86,7 @@ export function ObservabilityPanel({
 
       {!metrics && (
         <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
-          Metrics are not available yet. Check the API and demo admin API key.
+          {t("monitoringModule.noMetrics")}
         </div>
       )}
     </section>
@@ -120,6 +126,8 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function RouteMetricsList({ routes }: { routes: Record<string, RouteMetrics> }) {
+  const { t } = useI18n();
+
   const routeEntries = Object.entries(routes)
     .sort(([, a], [, b]) => b.requests - a.requests)
     .slice(0, 8);
@@ -127,7 +135,7 @@ function RouteMetricsList({ routes }: { routes: Record<string, RouteMetrics> }) 
   if (routeEntries.length === 0) {
     return (
       <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
-        No route metrics recorded yet.
+        {t("monitoringModule.noRoutes")}
       </div>
     );
   }
@@ -135,10 +143,10 @@ function RouteMetricsList({ routes }: { routes: Record<string, RouteMetrics> }) 
   return (
     <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
       <div className="grid grid-cols-[1fr_120px_120px_160px] bg-slate-900 px-4 py-3 text-xs uppercase tracking-wide text-slate-400">
-        <span>Route</span>
-        <span>Requests</span>
-        <span>Errors</span>
-        <span>Avg latency</span>
+        <span>{t("monitoringModule.route")}</span>
+        <span>{t("monitoringModule.requests")}</span>
+        <span>{t("monitoringModule.errors")}</span>
+        <span>{t("monitoringModule.avgLatency")}</span>
       </div>
 
       <div className="divide-y divide-white/10">

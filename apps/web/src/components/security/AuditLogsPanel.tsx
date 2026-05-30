@@ -1,6 +1,9 @@
+﻿"use client";
+
 import type { AuditLogRead } from "@/types";
 import { formatDateTime } from "@/lib/formatters";
 import { ActionButton } from "@/components/ui/ActionButton";
+import { useI18n } from "@/i18n/I18nProvider";
 
 export function AuditLogsPanel({
   logs,
@@ -11,6 +14,8 @@ export function AuditLogsPanel({
   loading: boolean;
   onRefresh: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <section
       id="audit"
@@ -19,32 +24,34 @@ export function AuditLogsPanel({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.24em] text-cyan-300">
-            Traceability
+            {t("auditModule.eyebrow")}
           </p>
-          <h2 className="mt-3 text-3xl font-semibold text-white">Audit logs</h2>
+          <h2 className="mt-3 text-3xl font-semibold text-white">
+            {t("auditModule.title")}
+          </h2>
           <p className="mt-3 max-w-3xl text-slate-400">
-            Admin-only traceability of security-sensitive actions executed through the API.
+            {t("auditModule.description")}
           </p>
         </div>
 
         <ActionButton onClick={onRefresh} disabled={loading}>
-          {loading ? "Loading..." : "Refresh logs"}
+          {loading ? t("auditModule.loading") : t("auditModule.refreshLogs")}
         </ActionButton>
       </div>
 
       {logs.length === 0 && (
         <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-8 text-center text-slate-400">
-          No audit logs available, or the current API key does not have admin permissions.
+          {t("auditModule.noLogs")}
         </div>
       )}
 
       {logs.length > 0 && (
         <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
           <div className="grid grid-cols-[180px_120px_1fr_120px] bg-slate-900 px-4 py-3 text-xs uppercase tracking-wide text-slate-400">
-            <span>Actor</span>
-            <span>Role</span>
-            <span>Action</span>
-            <span>Status</span>
+            <span>{t("auditModule.actor")}</span>
+            <span>{t("auditModule.role")}</span>
+            <span>{t("auditModule.action")}</span>
+            <span>{t("auditModule.status")}</span>
           </div>
 
           <div className="divide-y divide-white/10">
